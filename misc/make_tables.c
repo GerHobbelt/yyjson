@@ -530,6 +530,11 @@ static void make_esc_single_char_table(void) {
     printf("\n");
 }
 
+
+#if defined(BUILD_MONOLITHIC)
+#define main     yyjson_maketables_util_main
+#endif
+
 int main(void) {
     make_pow10_sig_table();
     make_dec_trailing_zero_table();
