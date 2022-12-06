@@ -1939,6 +1939,21 @@ static void test_json_mut_doc_api(void) {
     test_json_mut_doc_api_one("{\"a\":1}");
     test_json_mut_doc_api_one("{\"a\":{\"b\":[-1,2,1.0,2.0,true,false,null]}}");
 #endif
+#if !YYJSON_DISABLE_READER && !YYJSON_DISABLE_WRITER
+    {
+        const char *json_src = "{\"a\":1,\"b\":2}";
+        const char *json_dst = "{\"c\":1,\"b\":2}";
+        yyjson_doc *idoc = yyjson_read(json_src, strlen(json_src), 0);
+        yyjson_mut_doc *mdoc = yyjson_doc_mut_copy(idoc, NULL);
+        yyjson_mut_val *root = yyjson_mut_doc_get_root(mdoc);
+        yyjson_mut_obj_rename_key(mdoc, root, "a", "c");
+        char *new_json = yyjson_mut_write(mdoc, 0, NULL);
+        yy_assert(strcmp(new_json, json_dst) == 0);
+        yyjson_doc_free(idoc);
+        yyjson_mut_doc_free(mdoc);
+        free(new_json);
+    }
+#endif
 }
 
 static void validate_equals(const char *lhs_json, const char *rhs_json, bool equals) {
