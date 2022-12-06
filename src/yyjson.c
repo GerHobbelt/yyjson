@@ -464,8 +464,12 @@ yyjson_api uint32_t yyjson_version(void) {
 /* Inf raw value (positive) */
 #define F64_RAW_INF U64(0x7FF00000, 0x00000000)
 
-/* NaN raw value (positive, without payload) */
+/* NaN raw value (quiet NaN, no payload, no sign) */
+#if defined(__hppa__) || (defined(__mips__) && !defined(__mips_nan2008))
+#define F64_RAW_NAN U64(0x7FF7FFFF, 0xFFFFFFFF)
+#else
 #define F64_RAW_NAN U64(0x7FF80000, 0x00000000)
+#endif
 
 /* double number bits */
 #define F64_BITS 64
@@ -6291,11 +6295,14 @@ static_noinline u8 *write_f64_raw(u8 *buf, u64 raw, yyjson_write_flag flg) {
     } else {
         /* finite number */
         int i = 0;
+        bool fp = false;
         for (; i < len; i++) {
-            if (buf[i] == ',') {
-                buf[i] = '.';
-                break;
-            }
+            if (buf[i] == ',') buf[i] = '.';
+            if (digi_is_fp((u8)buf[i])) fp = true;
+        }
+        if (!fp) {
+            buf[len++] = '.';
+            buf[len++] = '0';
         }
     }
     return buf + len;

@@ -79,7 +79,7 @@ jobs:
 
     - name: CMake and CTest
       run: |
-          docker run -v "$PWD:/yyjson" ${{ matrix.arch }}/ubuntu bash -e -c '
+          docker run -v "$PWD:/yyjson" ${{ matrix.arch }}/debian bash -e -c '
             FORCE_COLOR=1
             CLICOLOR_FORCE=1
             apt-get update
@@ -114,7 +114,7 @@ jobs:
     - name: Build
       shell: bash
       working-directory: ${{runner.workspace}}/build
-      run: cmake --build . Release
+      run: cmake --build . --config Release
     
     - name: Test
       shell: bash
