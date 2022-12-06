@@ -24,10 +24,7 @@ jobs:
           - Valgrind
           - Sanitizer
           - None
-        compiler:
-          - gcc
-          - clang
-          
+
     steps:
     - uses: actions/checkout@v2
 
@@ -49,14 +46,9 @@ jobs:
         if [ "${{matrix.checker}}" == "Sanitizer" ]; then
           BUILD_OPTIONS="${BUILD_OPTIONS} -DYYJSON_ENABLE_SANITIZE=ON"
         fi
-        if [ "${{matrix.compiler}}" == "clang" ]; then
-          BUILD_COMPILER="-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++"
-        else
-          BUILD_COMPILER=""
-        fi
         cmake -E make_directory ${{runner.workspace}}/build
         cd ${{runner.workspace}}/build
-        cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=${{matrix.build_type}} $BUILD_OPTIONS $BUILD_COMPILER
+        cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=${{matrix.build_type}} $BUILD_OPTIONS
 
     - name: Build
       shell: bash
@@ -145,7 +137,7 @@ jobs:
       shell: bash
       run: sudo apt update; sudo apt install tcc
 
-    - name: TinyCC
+    - name: Build and Test
       run: |
         mkdir build
         cd build
@@ -158,8 +150,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    
-    - name: FastMath
+    - name: Build and Test
       run: |
         mkdir build
         cd build
@@ -168,11 +159,36 @@ jobs:
         ctest -C Release --output-on-failure
 
 
+  reader:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build and Test
+      run: |
+        mkdir build
+        cd build
+        cmake .. -DYYJSON_DISABLE_WRITER=ON -DCMAKE_BUILD_TYPE=Release -DYYJSON_BUILD_TESTS=ON
+        cmake --build . --config Release
+        ctest -C Release --output-on-failure
+
+
+writer:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build and Test
+      run: |
+        mkdir build
+        cd build
+        cmake .. -DYYJSON_DISABLE_READER=ON -DCMAKE_BUILD_TYPE=Release -DYYJSON_BUILD_TESTS=ON
+        cmake --build . --config Release
+        ctest -C Release --output-on-failure
+
+
   fuzzing:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    
     - name: Fuzzing
       run: |
         mkdir build
