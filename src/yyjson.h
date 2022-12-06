@@ -633,6 +633,8 @@ yyjson_api yyjson_doc *yyjson_read_opts(char *dat,
  @return    A new JSON document, or NULL if error occurs.
             You should use yyjson_doc_free() to release it
             when it's no longer needed.
+ 
+ @warning   On 32-bit system, files larger than 2GB may fail to read.
  */
 yyjson_api yyjson_doc *yyjson_read_file(const char *path,
                                         yyjson_read_flag flg,
@@ -1548,11 +1550,6 @@ yyjson_api_inline uint8_t yyjson_mut_get_tag(yyjson_mut_val *val);
     "array", "object", "true", "false", "uint", "sint", "real", "unknown". */
 yyjson_api_inline const char *yyjson_mut_get_type_desc(yyjson_mut_val *val);
 
-/** Returns whether two JSON values are equal (deep compare).
-    @warning This function takes a quadratic time. */
-yyjson_api bool yyjson_mut_equals(yyjson_mut_val *lhs,
-                                  yyjson_mut_val *rhs);
-
 /** Returns the content if the value is raw, or NULL on error. */
 yyjson_api_inline const char *yyjson_mut_get_raw(yyjson_mut_val *val);
 
@@ -1586,6 +1583,9 @@ yyjson_api_inline bool yyjson_mut_equals_str(yyjson_mut_val *val,
 yyjson_api_inline bool yyjson_mut_equals_strn(yyjson_mut_val *val,
                                               const char *str, size_t len);
 
+/** Returns whether two JSON values are equal (deep compare). */
+yyjson_api_inline bool yyjson_mut_equals(yyjson_mut_val *lhs,
+                                         yyjson_mut_val *rhs);
 
 
 /*==============================================================================
@@ -2783,10 +2783,7 @@ yyjson_api_inline bool yyjson_obj_iter_init(yyjson_val *obj,
         iter->obj = obj;
         return true;
     }
-    if (iter) {
-        iter->idx = 0;
-        iter->max = 0;
-    }
+    if (iter) memset(iter, 0, sizeof(yyjson_obj_iter));
     return false;
 }
 
@@ -3078,7 +3075,16 @@ yyjson_api_inline bool yyjson_mut_equals_strn(yyjson_mut_val *val,
     return yyjson_equals_strn((yyjson_val *)val, str, len);
 }
 
+yyjson_api bool unsafe_yyjson_mut_equals(yyjson_mut_val *lhs,
+                                         yyjson_mut_val *rhs);
 
+yyjson_api_inline bool yyjson_mut_equals(yyjson_mut_val *lhs,
+                                         yyjson_mut_val *rhs) {
+    if (yyjson_unlikely(!lhs || !rhs))
+        return false;
+    
+    return unsafe_yyjson_mut_equals(lhs, rhs);
+}
 
 /*==============================================================================
  * Mutable JSON Value Creation API (Implementation)
@@ -4153,7 +4159,6 @@ yyjson_api_inline bool unsafe_yyjson_mut_obj_replace(yyjson_mut_val *obj,
                 memcpy(val, &tmp, cpy_len);
                 return true;
             } else {
-                pre_key = cur_key;
                 cur_key = cur_key->next->next;
             }
         }
