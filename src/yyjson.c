@@ -39,7 +39,12 @@
 #   pragma warning(disable:4706) /* assignment within conditional expression */
 #endif
 
-/* version, same as YYJSON_VERSION_HEX */
+
+
+/*==============================================================================
+ * Version
+ *============================================================================*/
+
 yyjson_api uint32_t yyjson_version(void) {
     return YYJSON_VERSION_HEX;
 }
@@ -160,8 +165,8 @@ yyjson_api uint32_t yyjson_version(void) {
  
  If we are sure that there's no similar error described above, we can define the
  YYJSON_DOUBLE_MATH_CORRECT as 1 to enable the fast path calculation. This is
- not an accurate detection, it's just try to avoid the error at compiler time.
- An accurate detection can be done at runtime:
+ not an accurate detection, it's just try to avoid the error at compile-time.
+ An accurate detection can be done at run-time:
  
      bool is_double_math_correct(void) {
          volatile double r = 43683.0;
@@ -169,6 +174,7 @@ yyjson_api uint32_t yyjson_version(void) {
          return r == 4.3683e25;
      }
  
+ See also: utils.h in https://github.com/google/double-conversion/
  */
 #if !defined(FLT_EVAL_METHOD) && defined(__FLT_EVAL_METHOD__)
 #    define FLT_EVAL_METHOD __FLT_EVAL_METHOD__
@@ -207,7 +213,9 @@ yyjson_api uint32_t yyjson_version(void) {
     defined(__hppa) || defined(__hppa__) || defined(__HPPA__) || \
     defined(__riscv) || defined(__riscv__) || \
     defined(__s390__) || defined(__avr32__) || defined(__SH4__) || \
-    defined(__e2k__) || defined(__arc__) || defined(__loongarch__) || \
+    defined(__e2k__) || defined(__arc__) || defined(__ARC64__) || \
+    defined(__loongarch__) || defined(__nios2__) || defined(__ghs) || \
+    defined(__microblaze__) || defined(__XTENSA__) || \
     defined(__EMSCRIPTEN__) || defined(__wasm__)
 #   define YYJSON_DOUBLE_MATH_CORRECT 1
 #else
@@ -289,17 +297,15 @@ yyjson_api uint32_t yyjson_version(void) {
 #   define YYJSON_ENDIAN YYJSON_BIG_ENDIAN
 
 #else
-#   define YYJSON_ENDIAN 0 /* unknown endian, detect at runtime */
+#   define YYJSON_ENDIAN 0 /* unknown endian, detect at run-time */
 #endif
 
 /*
  Unaligned memory access detection.
  
- Some architectures are unable to perform unaligned memory accesses, and the
- unaligned access may cause processor exceptions.
- 
- Modern compilers can make some optimizations for unaligned access.
- For example: https://godbolt.org/z/Ejo3Pa
+ Some architectures cannot perform unaligned memory accesse, or unaligned memory
+ accesses can have a large performance penalty. Modern compilers can make some
+ optimizations for unaligned access. For example: https://godbolt.org/z/Ejo3Pa
  
     typedef struct { char c[2] } vec2;
     void copy_vec2(vec2 *dst, vec2 *src) {
@@ -352,14 +358,28 @@ yyjson_api uint32_t yyjson_version(void) {
 
 #endif
 
-/* Some estimated initial ratio of the JSON data (data_size / value_count).
-   These values are used to avoid frequent memory allocation calls. */
+/*
+ Estimated initial ratio of the JSON data (data_size / value_count).
+ For example:
+    
+    data:        {"id":12345678,"name":"Harry"}
+    data_size:   30
+    value_count: 5
+    ratio:       6
+    
+ yyjson uses dynamic memory with a growth factor of 1.5 when reading and writing
+ JSON, the ratios below are used to determine the initial memory size.
+ 
+ A too large ratio will waste memory, and a too small ratio will cause multiple
+ memory growths and degrade performance. Currently these ratios are generated
+ with some commonly used JSON datasets.
+ */
 #define YYJSON_READER_ESTIMATED_PRETTY_RATIO 16
 #define YYJSON_READER_ESTIMATED_MINIFY_RATIO 6
 #define YYJSON_WRITER_ESTIMATED_PRETTY_RATIO 32
 #define YYJSON_WRITER_ESTIMATED_MINIFY_RATIO 18
 
-/* Default value for public flags. */
+/* Default value for compile-time options. */
 #ifndef YYJSON_DISABLE_READER
 #define YYJSON_DISABLE_READER 0
 #endif
@@ -797,7 +817,10 @@ static_inline u32 u64_lz_bits(u64 v) {
     hi |= 32;
     return (u32)63 - (u32)(hi_set ? hi : lo);
 #else
-    /* branchless, use de Bruijn sequences */
+    /*
+     branchless, use de Bruijn sequences
+     see: https://www.chessprogramming.org/BitScan
+     */
     const u8 table[64] = {
         63, 16, 62,  7, 15, 36, 61,  3,  6, 14, 22, 26, 35, 47, 60,  2,
          9,  5, 28, 11, 13, 21, 42, 19, 25, 31, 34, 40, 46, 52, 59,  1,
@@ -829,7 +852,10 @@ static_inline u32 u64_tz_bits(u64 v) {
     hi += 32;
     return lo_set ? lo : hi;
 #else
-    /* branchless, use de Bruijn sequences */
+    /*
+     branchless, use de Bruijn sequences
+     see: https://www.chessprogramming.org/BitScan
+     */
     const u8 table[64] = {
          0,  1,  2, 53,  3,  7, 54, 27,  4, 38, 41,  8, 34, 55, 48, 28,
         62,  5, 39, 46, 44, 42, 22,  9, 24, 35, 59, 56, 49, 18, 29, 11,
@@ -1306,11 +1332,12 @@ yyjson_api yyjson_mut_val *yyjson_val_mut_copy(yyjson_mut_doc *m_doc,
 static yyjson_mut_val *unsafe_yyjson_mut_val_mut_copy(yyjson_mut_doc *m_doc,
                                                       yyjson_mut_val *m_vals) {
     /*
-    The mutable object or array stores all sub-values in a circular linked list,
-    so we can traverse them in the same loop. The traversal starts from the last
-    item, continues with the first item in a list, and ends with the second
-    to last item, which needs to be linked to the last item to close the circle.
-    */
+     The mutable object or array stores all sub-values in a circular linked
+     list, so we can traverse them in the same loop. The traversal starts from
+     the last item, continues with the first item in a list, and ends with the
+     second to last item, which needs to be linked to the last item to close the
+     circle.
+     */
     
     yyjson_mut_val *m_val = unsafe_yyjson_mut_val(m_doc, 1);
     if (unlikely(!m_val)) return NULL;
@@ -1492,6 +1519,8 @@ bool unsafe_yyjson_mut_equals(yyjson_mut_val *lhs, yyjson_mut_val *rhs) {
     }
 }
 
+
+
 /*==============================================================================
  * JSON Pointer
  *============================================================================*/
@@ -1501,7 +1530,7 @@ bool unsafe_yyjson_mut_equals(yyjson_mut_val *lhs, yyjson_mut_val *rhs) {
  @param ptr Input the segment after `/`, output the end of segment.
  @param end The end of entire JSON pointer.
  @param arr JSON array (yyjson_val/yyjson_mut_val, based on `mut`).
- @param mut `arr` is mutable.
+ @param mut Whether `arr` is mutable.
  @return The matched value, or NULL if not matched.
  */
 static_inline void *pointer_read_arr(const char **ptr,
@@ -1717,6 +1746,60 @@ yyjson_api yyjson_mut_val *yyjson_merge_patch(yyjson_mut_doc *doc,
         if (!patch_val) {
             mut_key = yyjson_val_mut_copy(doc, key);
             mut_val = yyjson_val_mut_copy(doc, orig_val);
+            if (!yyjson_mut_obj_add(builder, mut_key, mut_val)) return NULL;
+        }
+    }
+    
+    return builder;
+}
+
+yyjson_api yyjson_mut_val *yyjson_mut_merge_patch(yyjson_mut_doc *doc,
+                                                  yyjson_mut_val *orig,
+                                                  yyjson_mut_val *patch) {
+    usize idx, max;
+    yyjson_mut_val *key, *orig_val, *patch_val, local_orig;
+    yyjson_mut_val *builder, *mut_key, *mut_val, *merged_val;
+    
+    if (unlikely(!yyjson_mut_is_obj(patch))) {
+        return yyjson_mut_val_mut_copy(doc, patch);
+    }
+    
+    builder = yyjson_mut_obj(doc);
+    if (unlikely(!builder)) return NULL;
+    
+    if (!yyjson_mut_is_obj(orig)) {
+        orig = &local_orig;
+        orig->tag = builder->tag;
+        orig->uni = builder->uni;
+    }
+    
+    /* Merge items modified by the patch. */
+    yyjson_mut_obj_foreach(patch, idx, max, key, patch_val) {
+        /* null indicates the field is removed. */
+        if (unsafe_yyjson_is_null(patch_val)) {
+            continue;
+        }
+        mut_key = yyjson_mut_val_mut_copy(doc, key);
+        orig_val = yyjson_mut_obj_getn(orig,
+                                       unsafe_yyjson_get_str(key),
+                                       unsafe_yyjson_get_len(key));
+        merged_val = yyjson_mut_merge_patch(doc, orig_val, patch_val);
+        if (!yyjson_mut_obj_add(builder, mut_key, merged_val)) return NULL;
+    }
+    
+    /* Exit early, if orig is not contributing to the final result. */
+    if (orig == &local_orig) {
+        return builder;
+    }
+    
+    /* Copy over any items that weren't modified by the patch. */
+    yyjson_mut_obj_foreach(orig, idx, max, key, orig_val) {
+        patch_val = yyjson_mut_obj_getn(patch,
+                                        unsafe_yyjson_get_str(key),
+                                        unsafe_yyjson_get_len(key));
+        if (!patch_val) {
+            mut_key = yyjson_mut_val_mut_copy(doc, key);
+            mut_val = yyjson_mut_val_mut_copy(doc, orig_val);
             if (!yyjson_mut_obj_add(builder, mut_key, mut_val)) return NULL;
         }
     }
@@ -2445,6 +2528,7 @@ static_inline void pow10_table_get_exp(i32 exp10, i32 *exp2) {
 #endif
 
 
+
 #if !YYJSON_DISABLE_READER
 
 /*==============================================================================
@@ -2638,7 +2722,7 @@ static_inline bool digi_is_digit_or_fp(u8 d) {
  *============================================================================*/
 
 /**
- This table is used to convert 4 hex character sequence to a number,
+ This table is used to convert 4 hex character sequence to a number.
  A valid hex character [0-9A-Fa-f] will mapped to it's raw number [0x00, 0x0F],
  an invalid hex character will mapped to [0xF0].
  (generate with misc/make_tables.c)
@@ -3808,6 +3892,8 @@ digi_finish:
 #undef return_f64
 #undef return_f64_raw
 }
+
+
 
 #else /* FP_READER */
 
@@ -5769,7 +5855,7 @@ static_inline u8 *write_u64(u64 val, u8 *buf) {
  * Number Writer
  *============================================================================*/
 
-#if YYJSON_HAS_IEEE_754 && !YYJSON_DISABLE_FAST_FP_CONV
+#if YYJSON_HAS_IEEE_754 && !YYJSON_DISABLE_FAST_FP_CONV  /* FP_WRITER */
 
 /** Trailing zero count table for number 0 to 99.
     (generate with misc/make_tables.c) */
@@ -5934,12 +6020,14 @@ static_inline u64 round_to_odd(u64 hi, u64 lo, u64 cp) {
  The output significand is shortest decimal but may have trailing zeros.
  
  This function use the Schubfach algorithm:
- Raffaello Giulietti, The Schubfach way to render doubles, 2020.
- https://drive.google.com/open?id=1luHhyQF9zKlM8yJ1nebU0OgVYhfC6CBN
- https://github.com/abolz/Drachennest
+ Raffaello Giulietti, The Schubfach way to render doubles (4th version), 2021.
+ https://drive.google.com/file/d/1IEeATSVnEE6TkrHlCYNY2GjaraBjOT4f
+ https://mail.openjdk.java.net/pipermail/core-libs-dev/2021-November/083536.html
+ https://github.com/openjdk/jdk/pull/3402 (Java implementation)
+ https://github.com/abolz/Drachennest (C++ implementation)
  
  See also:
- Dragonbox: A New Floating-Point Binary-to-Decimal Conversion Algorithm, 2020.
+ Dragonbox: A New Floating-Point Binary-to-Decimal Conversion Algorithm, 2022.
  https://github.com/jk-jeon/dragonbox/blob/master/other_files/Dragonbox.pdf
  https://github.com/jk-jeon/dragonbox
  
@@ -5955,23 +6043,23 @@ static_inline void f64_bin_to_dec(u64 sig_raw, u32 exp_raw,
                                   u64 sig_bin, i32 exp_bin,
                                   u64 *sig_dec, i32 *exp_dec) {
     
-    bool is_even, lower_bound_closer, u_inside, w_inside, round_up;
+    bool is_even, regular_spacing, u_inside, w_inside, round_up;
     u64 s, sp, cb, cbl, cbr, vb, vbl, vbr, pow10hi, pow10lo, upper, lower, mid;
     i32 k, h, exp10;
     
     is_even = !(sig_bin & 1);
-    lower_bound_closer = (sig_raw == 0 && exp_raw > 1);
+    regular_spacing = (sig_raw == 0 && exp_raw > 1);
     
-    cbl = 4 * sig_bin - 2 + lower_bound_closer;
+    cbl = 4 * sig_bin - 2 + regular_spacing;
     cb  = 4 * sig_bin;
     cbr = 4 * sig_bin + 2;
     
     /* exp_bin: [-1074, 971]                                                  */
-    /* k = lower_bound_closer ? floor(log10(pow(2, exp_bin)))                 */
-    /*                        : floor(log10(pow(2, exp_bin) * 3.0 / 4.0))     */
-    /*   = lower_bound_closer ? floor(exp_bin * log10(2))                     */
-    /*                        : floor(exp_bin * log10(2) + log10(3.0 / 4.0))  */
-    k = (i32)(exp_bin * 315653 - (lower_bound_closer ? 131237 : 0)) >> 20;
+    /* k = regular_spacing ? floor(log10(pow(2, exp_bin)))                    */
+    /*                     : floor(log10(pow(2, exp_bin) * 3.0 / 4.0))        */
+    /*   = regular_spacing ? floor(exp_bin * log10(2))                        */
+    /*                     : floor(exp_bin * log10(2) + log10(3.0 / 4.0))     */
+    k = (i32)(exp_bin * 315653 - (regular_spacing ? 131237 : 0)) >> 20;
     
     /* k: [-324, 292]                                                         */
     /* h = exp_bin + floor(log2(pow(10, e)))                                  */
@@ -6019,7 +6107,7 @@ static_inline void f64_bin_to_dec(u64 sig_raw, u32 exp_raw,
  1. Keep the negative sign of 0.0 to preserve input information.
  2. Keep decimal point to indicate the number is floating point.
  3. Remove positive sign of exponent part.
-*/
+ */
 static_noinline u8 *write_f64_raw(u8 *buf, u64 raw, yyjson_write_flag flg) {
     u64 sig_bin, sig_dec, sig_raw;
     i32 exp_bin, exp_dec, sig_len, dot_pos, i, max;

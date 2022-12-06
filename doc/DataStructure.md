@@ -1,4 +1,6 @@
-# Data Structure
+Data Structures
+===============
+
 
 yyjson has 2 types of data structures: immutable and mutable.
 
@@ -7,6 +9,7 @@ When building a JSON, yyjson creates mutable document and values.<br/>
 yyjson also provides some methods to convert immutable document into mutable document.<br/>
 <br/>
 Note that the data structures described in this document are private, and you should use public API to access them.
+
 
 ---------------
 ## Immutable Value

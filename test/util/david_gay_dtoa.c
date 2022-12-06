@@ -1,7 +1,7 @@
 /*
  Note
  
- This file was copy from David Gay's website:
+ This file is copied from David Gay's website:
  http://www.netlib.org/fp/dtoa.c
  http://www.netlib.org/fp/g_fmt.c
  
@@ -10,7 +10,7 @@
  */
 
 #define IEEE_8087
-#undef USE_LOCALE
+#define NO_BF96
 
 /* warning suppress begin */
 #if defined(__clang__)

@@ -3,26 +3,8 @@
 # https://github.com/ibireme/yyjson/blob/master/LICENSE
 
 cmake_minimum_required(VERSION 3.5)
-project(yyjson VERSION 0.4.0)
+project(yyjson VERSION 0.5.0)
 
-
-# ------------------------------------------------------------------------------
-# Compile Options, see yyjson.h for more explanation.
-option(YYJSON_DISABLE_READER "Disable JSON reader" OFF)
-option(YYJSON_DISABLE_WRITER "Disable JSON writer" OFF)
-option(YYJSON_DISABLE_FAST_FP_CONV "Disable custom floating-point number conversion" OFF)
-option(YYJSON_DISABLE_NON_STANDARD "Disable non-standard JSON support" OFF)
-
-
-# ------------------------------------------------------------------------------
-# Build Options
-option(YYJSON_BUILD_TESTS "Build all tests" OFF)
-option(YYJSON_BUILD_FUZZER "Build fuzzer" OFF)
-option(YYJSON_BUILD_MISC "Build misc" OFF)
-option(YYJSON_ENABLE_COVERAGE "Enable code coverage for tests" OFF)
-option(YYJSON_ENABLE_VALGRIND "Enable valgrind memory checker for tests" OFF)
-option(YYJSON_ENABLE_SANITIZE "Enable sanitizer for tests" OFF)
-option(YYJSON_ENABLE_FASTMATH "Enable fast-math for tests" OFF)
 
 
 # ------------------------------------------------------------------------------
@@ -36,27 +18,48 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 
+
+# ------------------------------------------------------------------------------
+# Build Options
+option(YYJSON_BUILD_TESTS "Build all tests" OFF)
+option(YYJSON_BUILD_FUZZER "Build fuzzer" OFF)
+option(YYJSON_BUILD_MISC "Build misc" OFF)
+option(YYJSON_BUILD_DOC "Build documentation with doxygen" OFF)
+option(YYJSON_ENABLE_COVERAGE "Enable code coverage for tests" OFF)
+option(YYJSON_ENABLE_VALGRIND "Enable valgrind memory checker for tests" OFF)
+option(YYJSON_ENABLE_SANITIZE "Enable sanitizer for tests" OFF)
+option(YYJSON_ENABLE_FASTMATH "Enable fast-math for tests" OFF)
+
+
+
+# ------------------------------------------------------------------------------
+# Compilation options, see yyjson.h for more explanation
+option(YYJSON_DISABLE_READER "Disable JSON reader" OFF)
+option(YYJSON_DISABLE_WRITER "Disable JSON writer" OFF)
+option(YYJSON_DISABLE_FAST_FP_CONV "Disable custom floating-point number conversion" OFF)
+option(YYJSON_DISABLE_NON_STANDARD "Disable non-standard JSON support" OFF)
+
+if(YYJSON_DISABLE_READER)
+    add_definitions(-DYYJSON_DISABLE_READER)
+endif()
+if(YYJSON_DISABLE_WRITER)
+    add_definitions(-DYYJSON_DISABLE_WRITER)
+endif()
+if(YYJSON_DISABLE_FAST_FP_CONV)
+    add_definitions(-DYYJSON_DISABLE_FAST_FP_CONV)
+endif()
+if(YYJSON_DISABLE_NON_STANDARD)
+    add_definitions(-DYYJSON_DISABLE_NON_STANDARD)
+endif()
+
+
+
 # ------------------------------------------------------------------------------
 # Library
 add_library(yyjson src/yyjson.h src/yyjson.c)
 target_include_directories(yyjson PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>)
 set_target_properties(yyjson PROPERTIES VERSION ${PROJECT_VERSION})
 
-
-# ------------------------------------------------------------------------------
-# Compiler Flags
-if(YYJSON_DISABLE_READER)
-    add_definitions(-DYYJSON_DISABLE_READER=1)
-endif()
-if(YYJSON_DISABLE_WRITER)
-    add_definitions(-DYYJSON_DISABLE_WRITER=1)
-endif()
-if(YYJSON_DISABLE_FAST_FP_CONV)
-    add_definitions(-DYYJSON_DISABLE_FAST_FP_CONV=1)
-endif()
-if(YYJSON_DISABLE_NON_STANDARD)
-    add_definitions(-DYYJSON_DISABLE_NON_STANDARD=1)
-endif()
 
 
 # ------------------------------------------------------------------------------
@@ -112,6 +115,7 @@ if(BUILD_SHARED_LIBS)
 endif()
 
 
+
 # ------------------------------------------------------------------------------
 # Install
 include(GNUInstallDirs)
@@ -127,6 +131,7 @@ install(EXPORT yyjson-targets
         NAMESPACE yyjson::
         DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/yyjson")
 install(FILES src/yyjson.h DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
+
 
 
 # ------------------------------------------------------------------------------
@@ -352,6 +357,7 @@ if(YYJSON_BUILD_TESTS)
 endif()
 
 
+
 # ------------------------------------------------------------------------------
 # Fuzzing
 if (YYJSON_BUILD_FUZZER)
@@ -373,6 +379,7 @@ if (YYJSON_BUILD_FUZZER)
         message(WARNING "LibFuzzer requires LLVM Clang as compiler")
     endif()
 endif()
+
 
 
 # ------------------------------------------------------------------------------
@@ -399,5 +406,29 @@ if(YYJSON_BUILD_MISC)
     )
     if(XCODE)
         set_default_xcode_property(make_tables)
+    endif()
+endif()
+
+
+
+# ------------------------------------------------------------------------------
+# Doxygen
+if(YYJSON_BUILD_DOC)
+    find_package(Doxygen)
+    if(DOXYGEN_FOUND)
+        message(STATUS "Doxygen found")
+        
+        set(DOXYGEN_IN "${CMAKE_CURRENT_SOURCE_DIR}/doc/doxygen/Doxyfile.in")
+        set(DOXYGEN_OUT "${CMAKE_CURRENT_BINARY_DIR}/Doxyfile")
+        configure_file(${DOXYGEN_IN} ${DOXYGEN_OUT} @ONLY)
+        message(STATUS "Doxygen will output to ${CMAKE_CURRENT_BINARY_DIR}/doxygen/html")
+        
+        add_custom_target(yyjson_doc ALL
+            COMMAND ${DOXYGEN_EXECUTABLE} "${CMAKE_CURRENT_BINARY_DIR}/Doxyfile"
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            COMMENT "Generating documentation with Doxygen"
+            VERBATIM)
+    else()
+        message(WARNING "Doxygen not found")
     endif()
 endif()
