@@ -6787,6 +6787,8 @@ err_esc:
 #undef is_valid_seq_4
 }
 
+
+
 /*==============================================================================
  * Writer Utilities
  *============================================================================*/
@@ -7392,6 +7394,7 @@ bool yyjson_val_write_file(const char *path,
     yyjson_val *root = (yyjson_val *)val;
     bool suc;
     
+    alc_ptr = alc_ptr ? alc_ptr : &YYJSON_DEFAULT_ALC;
     err = err ? err : &dummy_err;
     if (unlikely(!path || !*path)) {
         err->msg = "input path is invalid";
@@ -7402,8 +7405,7 @@ bool yyjson_val_write_file(const char *path,
     dat = (u8 *)yyjson_val_write_opts(root, flg, alc_ptr, &dat_len, err);
     if (unlikely(!dat)) return false;
     suc = write_dat_to_file(path, dat, dat_len, err);
-    if (alc_ptr) alc_ptr->free(alc_ptr->ctx, dat);
-    else free(dat);
+    alc_ptr->free(alc_ptr->ctx, dat);
     return suc;
 }
 
@@ -7884,6 +7886,7 @@ bool yyjson_mut_val_write_file(const char *path,
     yyjson_mut_val *root = (yyjson_mut_val *)val;
     bool suc;
     
+    alc_ptr = alc_ptr ? alc_ptr : &YYJSON_DEFAULT_ALC;
     err = err ? err : &dummy_err;
     if (unlikely(!path || !*path)) {
         err->msg = "input path is invalid";
@@ -7894,8 +7897,7 @@ bool yyjson_mut_val_write_file(const char *path,
     dat = (u8 *)yyjson_mut_val_write_opts(root, flg, alc_ptr, &dat_len, err);
     if (unlikely(!dat)) return false;
     suc = write_dat_to_file(path, dat, dat_len, err);
-    if (alc_ptr) alc_ptr->free(alc_ptr->ctx, dat);
-    else free(dat);
+    alc_ptr->free(alc_ptr->ctx, dat);
     return suc;
     
 }
