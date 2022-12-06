@@ -379,6 +379,7 @@ yyjson_api uint32_t yyjson_version(void);
 /** Type of JSON value (3 bit). */
 typedef uint8_t yyjson_type;
 #define YYJSON_TYPE_NONE        ((uint8_t)0)        /* _____000 */
+#define YYJSON_TYPE_RAW         ((uint8_t)1)        /* _____001 */
 #define YYJSON_TYPE_NULL        ((uint8_t)2)        /* _____010 */
 #define YYJSON_TYPE_BOOL        ((uint8_t)3)        /* _____011 */
 #define YYJSON_TYPE_NUM         ((uint8_t)4)        /* _____100 */
@@ -512,6 +513,10 @@ static const yyjson_read_flag YYJSON_READ_ALLOW_COMMENTS        = 1 << 3;
     such as 1e999, NaN, inf, -Infinity. */
 static const yyjson_read_flag YYJSON_READ_ALLOW_INF_AND_NAN     = 1 << 4;
 
+/** Read number as raw string (value with YYJSON_TYPE_RAW type),
+    inf/nan literal is also read as raw with `ALLOW_INF_AND_NAN` flag. */
+static const yyjson_read_flag YYJSON_READ_NUMBER_AS_RAW         = 1 << 5;
+
 
 
 /** Result code for JSON reader. */
@@ -563,7 +568,7 @@ static const yyjson_read_code YYJSON_READ_ERROR_FILE_READ               = 13;
 typedef struct yyjson_read_err {
     /** Error code, see `yyjson_read_code` for all available values. */
     yyjson_read_code code;
-    /** Short error message (NULL for success). */
+    /** Short error message, constant, no need to free (NULL for success). */
     const char *msg;
     /** Error byte position for input data (0 for success). */
     size_t pos;
@@ -779,8 +784,12 @@ typedef struct yyjson_write_err {
 
 
 
+/*==============================================================================
+ * JSON Document Writer API
+ *============================================================================*/
+
 /**
- Write JSON with options.
+ Write a document to JSON string with options.
  
  This function is thread-safe if you make sure that:
  1. The `alc` is thread-safe or NULL.
@@ -812,7 +821,7 @@ yyjson_api char *yyjson_write_opts(const yyjson_doc *doc,
                                    yyjson_write_err *err);
 
 /**
- Write JSON file with options.
+ Write a document to JSON file with options.
  
  This function is thread-safe if you make sure that:
  1. The file is not accessed by other threads.
@@ -843,7 +852,7 @@ yyjson_api bool yyjson_write_file(const char *path,
                                   yyjson_write_err *err);
 
 /**
- Write JSON.
+ Write a document to JSON string.
  
  This function is thread-safe.
  
@@ -869,7 +878,7 @@ yyjson_api_inline char *yyjson_write(const yyjson_doc *doc,
 
 
 /**
- Write JSON with options.
+ Write a document to JSON string with options.
  
  This function is thread-safe if you make sure that:
  1. The `doc` is not modified by other threads.
@@ -902,7 +911,7 @@ yyjson_api char *yyjson_mut_write_opts(const yyjson_mut_doc *doc,
                                        yyjson_write_err *err);
 
 /**
- Write JSON file with options.
+ Write a document to JSON file with options.
  
  This function is thread-safe if you make sure that:
  1. The file is not accessed by other threads.
@@ -934,7 +943,7 @@ yyjson_api bool yyjson_mut_write_file(const char *path,
                                       yyjson_write_err *err);
 
 /**
- Write JSON.
+ Write a document to JSON string.
  
  This function is thread-safe if you make sure that:
  1. The `doc` is not is not modified by other threads.
@@ -962,6 +971,190 @@ yyjson_api_inline char *yyjson_mut_write(const yyjson_mut_doc *doc,
 
 
 /*==============================================================================
+ * JSON Value Writer API
+ *============================================================================*/
+
+/**
+ Write a value to JSON string with options.
+ 
+ This function is thread-safe if you make sure that:
+ 1. The `alc` is thread-safe or NULL.
+
+ @param val The JSON root value.
+            If you pass NULL, you will get NULL result.
+ 
+ @param flg The JSON write options.
+            You can combine multiple options using bitwise `|` operator.
+ 
+ @param alc The memory allocator used by JSON writer.
+            Pass NULL to use the libc's default allocator (thread-safe).
+ 
+ @param len A pointer to receive output length in bytes.
+            Pass NULL if you don't need length information.
+
+ @param err A pointer to receive error information.
+            Pass NULL if you don't need error information.
+ 
+ @return    A new JSON string, or NULL if error occurs.
+            This string is encoded as UTF-8 with a null-terminator.
+            You should use free() or alc->free() to release it
+            when it's no longer needed.
+ */
+yyjson_api char *yyjson_val_write_opts(const yyjson_val *val,
+                                       yyjson_write_flag flg,
+                                       const yyjson_alc *alc,
+                                       size_t *len,
+                                       yyjson_write_err *err);
+
+/**
+ Write a value to JSON file with options.
+ 
+ This function is thread-safe if you make sure that:
+ 1. The file is not accessed by other threads.
+ 2. The `alc` is thread-safe or NULL.
+
+ @param path The JSON file's path.
+             If you pass an invalid path, you will get an error.
+             If the file is not empty, the content will be discarded.
+ 
+ @param val The JSON root value.
+            If you pass NULL or empty document, you will get an error.
+ 
+ @param flg The JSON write options.
+            You can combine multiple options using bitwise `|` operator.
+ 
+ @param alc The memory allocator used by JSON writer.
+            Pass NULL to use the libc's default allocator (thread-safe).
+ 
+ @param err A pointer to receive error information.
+            Pass NULL if you don't need error information.
+ 
+ @return    true for success, false for error.
+ */
+yyjson_api bool yyjson_val_write_file(const char *path,
+                                      const yyjson_val *val,
+                                      yyjson_write_flag flg,
+                                      const yyjson_alc *alc,
+                                      yyjson_write_err *err);
+
+/**
+ Write a value to JSON string.
+ 
+ This function is thread-safe.
+ 
+ @param val The JSON root value.
+            If you pass NULL, you will get NULL result.
+ 
+ @param flg The JSON write options.
+            You can combine multiple options using bitwise `|` operator.
+ 
+ @param len A pointer to receive output length in bytes.
+            Pass NULL if you don't need length information.
+ 
+ @return    A new JSON string, or NULL if error occurs.
+            This string is encoded as UTF-8 with a null-terminator.
+            You should use free() to release it when it's no longer needed.
+ */
+yyjson_api_inline char *yyjson_val_write(const yyjson_val *val,
+                                         yyjson_write_flag flg,
+                                         size_t *len) {
+    return yyjson_val_write_opts(val, flg, NULL, len, NULL);
+}
+
+/**
+ Write a value to JSON string with options.
+ 
+ This function is thread-safe if you make sure that:
+ 1. The `val` is not modified by other threads.
+ 2. The `alc` is thread-safe or NULL.
+
+ @param val The mutable JSON root value.
+            If you pass NULL or empty document, you will get NULL result.
+ 
+ @param flg The JSON write options.
+            You can combine multiple options using bitwise `|` operator.
+ 
+ @param alc The memory allocator used by JSON writer.
+            Pass NULL to use the libc's default allocator (thread-safe).
+ 
+ @param len A pointer to receive output length in bytes.
+            Pass NULL if you don't need length information.
+
+ @param err A pointer to receive error information.
+            Pass NULL if you don't need error information.
+ 
+ @return    A new JSON string, or NULL if error occurs.
+            This string is encoded as UTF-8 with a null-terminator.
+            You should use free() or alc->free() to release it
+            when it's no longer needed.
+ */
+yyjson_api char *yyjson_mut_val_write_opts(const yyjson_mut_val *val,
+                                           yyjson_write_flag flg,
+                                           const yyjson_alc *alc,
+                                           size_t *len,
+                                           yyjson_write_err *err);
+
+/**
+ Write a value to JSON file with options.
+ 
+ This function is thread-safe if you make sure that:
+ 1. The file is not accessed by other threads.
+ 2. The `val` is not modified by other threads.
+ 3. The `alc` is thread-safe or NULL.
+ 
+ @param path The JSON file's path.
+             If you pass an invalid path, you will get an error.
+             If the file is not empty, the content will be discarded.
+ 
+ @param val The mutable JSON root value.
+            If you pass NULL or empty document, you will get an error.
+ 
+ @param flg The JSON write options.
+            You can combine multiple options using bitwise `|` operator.
+ 
+ @param alc The memory allocator used by JSON writer.
+            Pass NULL to use the libc's default allocator (thread-safe).
+ 
+ @param err A pointer to receive error information.
+            Pass NULL if you don't need error information.
+ 
+ @return    true for success, false for error.
+ */
+yyjson_api bool yyjson_mut_val_write_file(const char *path,
+                                          const yyjson_mut_val *val,
+                                          yyjson_write_flag flg,
+                                          const yyjson_alc *alc,
+                                          yyjson_write_err *err);
+
+/**
+ Write a value to JSON string.
+ 
+ This function is thread-safe if you make sure that:
+ 1. The `val` is not is not modified by other threads.
+
+ @param val The JSON root value.
+            If you pass NULL, you will get NULL result.
+ 
+ @param flg The JSON write options.
+            You can combine multiple options using bitwise `|` operator.
+ 
+ @param len A pointer to receive output length in bytes.
+            Pass NULL if you don't need length information.
+
+ @return    A new JSON string, or NULL if error occurs.
+            This string is encoded as UTF-8 with a null-terminator.
+            You should use free() or alc->free() to release it
+            when it's no longer needed.
+ */
+yyjson_api_inline char *yyjson_mut_val_write(const yyjson_mut_val *val,
+                                             yyjson_write_flag flg,
+                                             size_t *len) {
+    return yyjson_mut_val_write_opts(val, flg, NULL, len, NULL);
+}
+
+
+
+/*==============================================================================
  * JSON Document API
  *============================================================================*/
 
@@ -982,6 +1175,9 @@ yyjson_api_inline void yyjson_doc_free(yyjson_doc *doc);
 /*==============================================================================
  * JSON Value Type API
  *============================================================================*/
+
+/** Returns whether the JSON value is raw value. */
+yyjson_api_inline bool yyjson_is_raw(yyjson_val *val);
 
 /** Returns whether the JSON value is null. */
 yyjson_api_inline bool yyjson_is_null(yyjson_val *val);
@@ -1042,6 +1238,9 @@ yyjson_api_inline uint8_t yyjson_get_tag(yyjson_val *val);
     "array", "object", "true", "false", "uint", "sint", "real", "unknown". */
 yyjson_api_inline const char *yyjson_get_type_desc(yyjson_val *val);
 
+/** Returns the content if the value is raw, or NULL on error. */
+yyjson_api_inline const char *yyjson_get_raw(yyjson_val *val);
+
 /** Returns the content if the value is bool, or false on error. */
 yyjson_api_inline bool yyjson_get_bool(yyjson_val *val);
 
@@ -1060,7 +1259,8 @@ yyjson_api_inline double yyjson_get_real(yyjson_val *val);
 /** Returns the content if the value is string, or NULL on error. */
 yyjson_api_inline const char *yyjson_get_str(yyjson_val *val);
 
-/** Returns the content length if the value is string, or 0 on error. */
+/** Returns the content length (raw length, string length, array size,
+    number of object key-value pairs), or 0 on error. */
 yyjson_api_inline size_t yyjson_get_len(yyjson_val *val);
 
 /** Returns whether the JSON value is equals to a string. */
@@ -1286,6 +1486,9 @@ yyjson_api yyjson_mut_val *yyjson_mut_val_mut_copy(yyjson_mut_doc *doc,
  * Mutable JSON Value Type API
  *============================================================================*/
 
+/** Returns whether the JSON value is raw. */
+yyjson_api_inline bool yyjson_mut_is_raw(yyjson_mut_val *val);
+
 /** Returns whether the JSON value is null. */
 yyjson_api_inline bool yyjson_mut_is_null(yyjson_mut_val *val);
 
@@ -1350,6 +1553,9 @@ yyjson_api_inline const char *yyjson_mut_get_type_desc(yyjson_mut_val *val);
 yyjson_api bool yyjson_mut_equals(yyjson_mut_val *lhs,
                                   yyjson_mut_val *rhs);
 
+/** Returns the content if the value is raw, or NULL on error. */
+yyjson_api_inline const char *yyjson_mut_get_raw(yyjson_mut_val *val);
+
 /** Returns the content if the value is bool, or false on error. */
 yyjson_api_inline bool yyjson_mut_get_bool(yyjson_mut_val *val);
 
@@ -1368,7 +1574,8 @@ yyjson_api_inline double yyjson_mut_get_real(yyjson_mut_val *val);
 /** Returns the content if the value is string, or NULL on error. */
 yyjson_api_inline const char *yyjson_mut_get_str(yyjson_mut_val *val);
 
-/** Returns the content length if the value is string, or 0 on error. */
+/** Returns the content length (raw length, string length, array size,
+    number of object key-value pairs), or 0 on error. */
 yyjson_api_inline size_t yyjson_mut_get_len(yyjson_mut_val *val);
 
 /** Returns whether the JSON value is equals to a string. */
@@ -1384,6 +1591,13 @@ yyjson_api_inline bool yyjson_mut_equals_strn(yyjson_mut_val *val,
 /*==============================================================================
  * Mutable JSON Value Creation API
  *============================================================================*/
+
+/** Creates and returns a raw value, returns NULL on error.
+    The input value should be a valid UTF-8 encoded string.
+    The input string is copied and held by the document. */
+yyjson_api_inline yyjson_mut_val *yyjson_mut_raw(yyjson_mut_doc *doc,
+                                                 const char *str,
+                                                 size_t len);
 
 /** Creates and returns a null value, returns NULL on error. */
 yyjson_api_inline yyjson_mut_val *yyjson_mut_null(yyjson_mut_doc *doc);
@@ -2125,6 +2339,10 @@ yyjson_api_inline uint8_t unsafe_yyjson_get_tag(void *val) {
     return (uint8_t)(tag & YYJSON_TAG_MASK);
 }
 
+yyjson_api_inline bool unsafe_yyjson_is_raw(void *val) {
+    return unsafe_yyjson_get_type(val) == YYJSON_TYPE_RAW;
+}
+
 yyjson_api_inline bool unsafe_yyjson_is_null(void *val) {
     return unsafe_yyjson_get_type(val) == YYJSON_TYPE_NULL;
 }
@@ -2189,6 +2407,10 @@ yyjson_api_inline bool unsafe_yyjson_arr_is_flat(yyjson_val *val) {
     size_t ofs = val->uni.ofs;
     size_t len = (size_t)(val->tag >> YYJSON_TAG_BIT);
     return len * sizeof(yyjson_val) + sizeof(yyjson_val) == ofs;
+}
+
+yyjson_api_inline const char *unsafe_yyjson_get_raw(void *val) {
+    return ((yyjson_val *)val)->uni.str;
 }
 
 yyjson_api_inline bool unsafe_yyjson_get_bool(void *val) {
@@ -2280,6 +2502,10 @@ yyjson_api_inline void yyjson_doc_free(yyjson_doc *doc) {
  * JSON Value Type API (Implementation)
  *============================================================================*/
 
+yyjson_api_inline bool yyjson_is_raw(yyjson_val *val) {
+    return val ? unsafe_yyjson_is_raw(val) : false;
+}
+
 yyjson_api_inline bool yyjson_is_null(yyjson_val *val) {
     return val ? unsafe_yyjson_is_null(val) : false;
 }
@@ -2353,6 +2579,7 @@ yyjson_api_inline uint8_t yyjson_get_tag(yyjson_val *val) {
 yyjson_api_inline const char *yyjson_get_type_desc(yyjson_val *val) {
     switch (yyjson_get_tag(val)) {
         case YYJSON_TYPE_NULL | YYJSON_SUBTYPE_NONE:  return "null";
+        case YYJSON_TYPE_RAW  | YYJSON_SUBTYPE_NONE:  return "raw";
         case YYJSON_TYPE_STR  | YYJSON_SUBTYPE_NONE:  return "string";
         case YYJSON_TYPE_ARR  | YYJSON_SUBTYPE_NONE:  return "array";
         case YYJSON_TYPE_OBJ  | YYJSON_SUBTYPE_NONE:  return "object";
@@ -2363,6 +2590,10 @@ yyjson_api_inline const char *yyjson_get_type_desc(yyjson_val *val) {
         case YYJSON_TYPE_NUM  | YYJSON_SUBTYPE_REAL:  return "real";
         default:                                      return "unknown";
     }
+}
+
+yyjson_api_inline const char *yyjson_get_raw(yyjson_val *val) {
+    return yyjson_is_raw(val) ? unsafe_yyjson_get_raw(val) : NULL;
 }
 
 yyjson_api_inline bool yyjson_get_bool(yyjson_val *val) {
@@ -2390,7 +2621,7 @@ yyjson_api_inline const char *yyjson_get_str(yyjson_val *val) {
 }
 
 yyjson_api_inline size_t yyjson_get_len(yyjson_val *val) {
-    return yyjson_is_str(val) ? unsafe_yyjson_get_len(val) : 0;
+    return val ? unsafe_yyjson_get_len(val) : 0;
 }
 
 yyjson_api_inline bool yyjson_equals_str(yyjson_val *val, const char *str) {
@@ -2727,6 +2958,10 @@ yyjson_api_inline void yyjson_mut_doc_set_root(yyjson_mut_doc *doc,
  * Mutable JSON Value Type API (Implementation)
  *============================================================================*/
 
+yyjson_api_inline bool yyjson_mut_is_raw(yyjson_mut_val *val) {
+    return val ? unsafe_yyjson_is_raw(val) : false;
+}
+
 yyjson_api_inline bool yyjson_mut_is_null(yyjson_mut_val *val) {
     return val ? unsafe_yyjson_is_null(val) : false;
 }
@@ -2801,6 +3036,10 @@ yyjson_api_inline const char *yyjson_mut_get_type_desc(yyjson_mut_val *val) {
     return yyjson_get_type_desc((yyjson_val *)val);
 }
 
+yyjson_api_inline const char *yyjson_mut_get_raw(yyjson_mut_val *val) {
+    return yyjson_get_raw((yyjson_val *)val);
+}
+
 yyjson_api_inline bool yyjson_mut_get_bool(yyjson_mut_val *val) {
     return yyjson_get_bool((yyjson_val *)val);
 }
@@ -2844,6 +3083,21 @@ yyjson_api_inline bool yyjson_mut_equals_strn(yyjson_mut_val *val,
 /*==============================================================================
  * Mutable JSON Value Creation API (Implementation)
  *============================================================================*/
+
+yyjson_api_inline yyjson_mut_val *yyjson_mut_raw(yyjson_mut_doc *doc,
+                                                 const char *str,
+                                                 size_t len) {
+    if (yyjson_likely(doc && str)) {
+        yyjson_mut_val *val = unsafe_yyjson_mut_val(doc, 1);
+        char *new_str = unsafe_yyjson_mut_strncpy(doc, str, len);
+        if (yyjson_likely(val && new_str)) {
+            val->tag = ((uint64_t)len << YYJSON_TAG_BIT) | YYJSON_TYPE_RAW;
+            val->uni.str = new_str;
+            return val;
+        }
+    }
+    return NULL;
+}
 
 yyjson_api_inline yyjson_mut_val *yyjson_mut_null(yyjson_mut_doc *doc) {
     if (yyjson_likely(doc)) {
