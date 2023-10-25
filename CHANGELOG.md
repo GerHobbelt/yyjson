@@ -5,13 +5,14 @@ All notable changes to this project will be documented in this file.
 ## Unreleased
 #### Added
 - Add `YYJSON_WRITE_PRETTY_TWO_SPACES` option to allow 2 spaces instead of 4 spaces when writing pretty JSON: #99
+- Add yyjson_get_num() function to convert and return any number value as `double`: #108.
 
 #### Changed
 - Change allocator's realloc function signature, add `old_size` parameter (just ignore the parameter if your allocator doesn't need it): #100
 - Change yyjson_read_number() function, add `alc` parameter.
 
 #### Fixed
-- Fix incorrect error code for some invalid input: #103
+- Fix inaccurate error code for truncated JSON: #103
 
 
 ## 0.6.0 (2022-12-12)
