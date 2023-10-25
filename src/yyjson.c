@@ -2670,8 +2670,11 @@ static const char_type CHAR_TYPE_CONTAINER  = 1 << 4;
 /** Comment character: '/'. */
 static const char_type CHAR_TYPE_COMMENT    = 1 << 5;
 
-/** Line end character '\\n', '\\r', '\0'. */
+/** Line end character: '\\n', '\\r', '\0'. */
 static const char_type CHAR_TYPE_LINE_END   = 1 << 6;
+
+/** Hexadecimal numeric character: [0-9a-fA-F]. */
+static const char_type CHAR_TYPE_HEX        = 1 << 7;
 
 /** Character type table (generate with misc/make_tables.c) */
 static const char_type char_table[256] = {
@@ -2681,13 +2684,13 @@ static const char_type char_table[256] = {
     0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
     0x01, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x20,
-    0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
-    0x02, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x82, 0x82, 0x82, 0x82, 0x82, 0x82, 0x82, 0x82,
+    0x82, 0x82, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x10, 0x04, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00,
@@ -2734,15 +2737,20 @@ static_inline bool char_is_container(u8 c) {
     return char_is_type(c, (char_type)CHAR_TYPE_CONTAINER);
 }
 
-/** Match a stop character in ASCII string: '"', '\', [0x00-0x1F], [0x80-0xFF]*/
+/** Match a stop character in ASCII string: '"', '\', [0x00-0x1F,0x80-0xFF]. */
 static_inline bool char_is_ascii_stop(u8 c) {
     return char_is_type(c, (char_type)(CHAR_TYPE_ESC_ASCII |
                                        CHAR_TYPE_NON_ASCII));
 }
 
-/** Match a line end character: '\\n', '\\r', '\0'*/
+/** Match a line end character: '\\n', '\\r', '\0'. */
 static_inline bool char_is_line_end(u8 c) {
     return char_is_type(c, (char_type)CHAR_TYPE_LINE_END);
+}
+
+/** Match a hexadecimal numeric character: [0-9a-fA-F]. */
+static_inline bool char_is_hex(u8 c) {
+    return char_is_type(c, (char_type)CHAR_TYPE_HEX);
 }
 
 
@@ -3123,6 +3131,116 @@ static_noinline bool skip_spaces_and_comments(u8 **ptr) {
     }
     *end = cur;
     return hdr != cur;
+}
+
+/**
+ Check truncated string.
+ Returns true if `cur` match `lit` but is truncated.
+ */
+static_inline bool is_truncated_str(u8 *cur, u8 *end,
+                                    const char *str,
+                                    bool case_sensitive) {
+    usize len = strlen(str);
+    if (cur + len <= end || end <= cur) return false;
+    if (case_sensitive) {
+        return memcmp(cur, str, (usize)(end - cur)) == 0;
+    }
+    for (; cur < end; cur++, str++) {
+        if ((*cur != (u8)*str) && (*cur != (u8)*str - 'a' + 'A')) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ Check truncated JSON on parsing errors.
+ Returns true if the input is valid but truncated.
+ */
+static_noinline bool is_truncated_end(u8 *hdr, u8 *cur, u8 *end,
+                                      yyjson_read_code code,
+                                      yyjson_read_flag flg) {
+    if (cur >= end) return true;
+    if (code == YYJSON_READ_ERROR_LITERAL) {
+        if (is_truncated_str(cur, end, "true", true) ||
+            is_truncated_str(cur, end, "false", true) ||
+            is_truncated_str(cur, end, "null", true)) {
+            return true;
+        }
+    }
+    if (code == YYJSON_READ_ERROR_UNEXPECTED_CHARACTER ||
+        code == YYJSON_READ_ERROR_INVALID_NUMBER ||
+        code == YYJSON_READ_ERROR_LITERAL) {
+        if ((flg & YYJSON_READ_ALLOW_INF_AND_NAN)) {
+            if (*cur == '-') cur++;
+            if (is_truncated_str(cur, end, "infinity", false) ||
+                is_truncated_str(cur, end, "nan", false)) {
+                return true;
+            }
+        }
+    }
+    if (code == YYJSON_READ_ERROR_UNEXPECTED_CONTENT) {
+        if (flg & YYJSON_READ_ALLOW_INF_AND_NAN) {
+            if (hdr + 3 <= cur &&
+                is_truncated_str(cur - 3, end, "infinity", false)) {
+                return true; /* e.g. infin would be read as inf + in */
+            }
+        }
+    }
+    if (code == YYJSON_READ_ERROR_INVALID_STRING) {
+        usize len = (usize)(end - cur);
+        
+        /* unicode escape sequence */
+        if (*cur == '\\') {
+            if (len == 1) return true;
+            if (len <= 5) {
+                if (*++cur != 'u') return false;
+                for (++cur; cur < end; cur++) {
+                    if (!char_is_hex(*cur)) return false;
+                }
+                return true;
+            }
+            return false;
+        }
+        
+        /* 2 to 4 bytes UTF-8, see `read_string()` for details. */
+        if (*cur & 0x80) {
+            u8 c0 = cur[0], c1 = cur[1], c2 = cur[2];
+            if (len == 1) {
+                /* 2 bytes UTF-8, truncated */
+                if ((c0 & 0xE0) == 0xC0 && (c0 & 0x1E)) return true;
+                /* 3 bytes UTF-8, truncated */
+                if ((c0 & 0xF0) == 0xE0) return true;
+                /* 4 bytes UTF-8, truncated */
+                if ((c0 & 0xF8) == 0xF0) return true;
+            }
+            if (len == 2) {
+                /* 3 bytes UTF-8, truncated */
+                if ((c0 & 0xF0) == 0xE0 &&
+                    (c1 & 0xC0) == 0x80 &&
+                    !((c0 & 0x0F) == 0x00 && (c1 & 0x20) == 0x00) &&
+                    !((c0 & 0x0F) == 0x0D && (c1 & 0x20) == 0x20)) {
+                    return true;
+                }
+                /* 4 bytes UTF-8, truncated */
+                if ((c0 & 0xF8) == 0xF0 &&
+                    (c1 & 0xC0) == 0x80 &&
+                    !((c0 & 0x07) == 0x00 && (c1 & 0x30) == 0x00)) {
+                    return true;
+                }
+            }
+            if (len == 3) {
+                /* 4 bytes UTF-8, truncated */
+                if ((c0 & 0xF8) == 0xF0 &&
+                    (c1 & 0xC0) == 0x80 &&
+                    (c2 & 0xC0) == 0x80 &&
+                    !((c0 & 0x07) == 0x00 && (c1 & 0x30) == 0x00)) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
 }
 
 
@@ -4105,17 +4223,19 @@ read_double:
         /* skip fraction part */
         dot = cur;
         cur++;
-        if (!digi_is_digit(*cur++)) {
+        if (!digi_is_digit(*cur)) {
             return_err(cur, "no digit after decimal point");
         }
+        cur++;
         while (digi_is_digit(*cur)) cur++;
     }
     if (digi_is_exp(*cur)) {
         /* skip exponent part */
         cur += 1 + digi_is_sign(cur[1]);
-        if (!digi_is_digit(*cur++)) {
+        if (!digi_is_digit(*cur)) {
             return_err(cur, "no digit after exponent sign");
         }
+        cur++;
         while (digi_is_digit(*cur)) cur++;
     }
     
@@ -4415,7 +4535,7 @@ copy_escape:
             case 't':  *dst++ = '\t'; src++; break;
             case 'u':
                 if (unlikely(!read_hex_u16(++src, &hi))) {
-                    return_err(src - 2, "invalid escaped unicode in string");
+                    return_err(src - 2, "invalid escaped sequence in string");
                 }
                 src += 4;
                 if (likely((hi & 0xF800) != 0xD800)) {
@@ -4435,9 +4555,11 @@ copy_escape:
                     if (unlikely((hi & 0xFC00) != 0xD800)) {
                         return_err(src - 6, "invalid high surrogate in string");
                     }
-                    if (unlikely(!byte_match_2(src, "\\u")) ||
-                        unlikely(!read_hex_u16(src + 2, &lo))) {
-                        return_err(src, "no matched low surrogate in string");
+                    if (unlikely(!byte_match_2(src, "\\u"))) {
+                        return_err(src, "no low surrogate in string");
+                    }
+                    if (unlikely(!read_hex_u16(src + 2, &lo))) {
+                        return_err(src, "invalid escaped sequence in string");
                     }
                     if (unlikely((lo & 0xFC00) != 0xDC00)) {
                         return_err(src, "invalid low surrogate in string");
@@ -4638,7 +4760,7 @@ static_noinline yyjson_doc *read_root_single(u8 *hdr,
 #define has_flag(_flag) unlikely((flg & YYJSON_READ_##_flag) != 0)
     
 #define return_err(_pos, _code, _msg) do { \
-    if (_pos >= end) { \
+    if (is_truncated_end(hdr, _pos, end, YYJSON_READ_ERROR_##_code, flg)) { \
         err->pos = (usize)(end - hdr); \
         err->code = YYJSON_READ_ERROR_UNEXPECTED_END; \
         err->msg = "unexpected end of data"; \
@@ -4757,7 +4879,7 @@ static_inline yyjson_doc *read_root_minify(u8 *hdr,
 #define has_flag(_flag) unlikely((flg & YYJSON_READ_##_flag) != 0)
     
 #define return_err(_pos, _code, _msg) do { \
-    if (_pos >= end) { \
+    if (is_truncated_end(hdr, _pos, end, YYJSON_READ_ERROR_##_code, flg)) { \
         err->pos = (usize)(end - hdr); \
         err->code = YYJSON_READ_ERROR_UNEXPECTED_END; \
         err->msg = "unexpected end of data"; \
@@ -4896,7 +5018,7 @@ arr_val_begin:
         cur++;
         if (likely(ctn_len == 0)) goto arr_end;
         if (has_flag(ALLOW_TRAILING_COMMAS)) goto arr_end;
-        cur--;
+        while (*cur != ',') cur--;
         goto fail_trailing_comma;
     }
     if (char_is_space(*cur)) {
@@ -4974,7 +5096,7 @@ obj_key_begin:
         cur++;
         if (likely(ctn_len == 0)) goto obj_end;
         if (has_flag(ALLOW_TRAILING_COMMAS)) goto obj_end;
-        cur--;
+        while (*cur != ',') cur--;
         goto fail_trailing_comma;
     }
     if (char_is_space(*cur)) {
@@ -5147,7 +5269,7 @@ static_inline yyjson_doc *read_root_pretty(u8 *hdr,
 #define has_flag(_flag) unlikely((flg & YYJSON_READ_##_flag) != 0)
     
 #define return_err(_pos, _code, _msg) do { \
-    if (_pos >= end) { \
+    if (is_truncated_end(hdr, _pos, end, YYJSON_READ_ERROR_##_code, flg)) { \
         err->pos = (usize)(end - hdr); \
         err->code = YYJSON_READ_ERROR_UNEXPECTED_END; \
         err->msg = "unexpected end of data"; \
@@ -5301,7 +5423,7 @@ arr_val_begin:
         cur++;
         if (likely(ctn_len == 0)) goto arr_end;
         if (has_flag(ALLOW_TRAILING_COMMAS)) goto arr_end;
-        cur--;
+        while (*cur != ',') cur--;
         goto fail_trailing_comma;
     }
     if (char_is_space(*cur)) {
@@ -5396,7 +5518,7 @@ obj_key_begin:
         cur++;
         if (likely(ctn_len == 0)) goto obj_end;
         if (has_flag(ALLOW_TRAILING_COMMAS)) goto obj_end;
-        cur--;
+        while (*cur != ',') cur--;
         goto fail_trailing_comma;
     }
     if (char_is_space(*cur)) {
@@ -5787,6 +5909,7 @@ yyjson_doc *yyjson_read_file(const char *path,
 const char *yyjson_read_number(const char *dat,
                                yyjson_val *val,
                                yyjson_read_flag flg,
+                               const yyjson_alc *alc,
                                yyjson_read_err *err) {
 #define return_err(_pos, _code, _msg) do { \
     err->pos = _pos > hdr ? (usize)(_pos - hdr) : 0; \
@@ -5802,14 +5925,36 @@ const char *yyjson_read_number(const char *dat,
     u8 **pre; /* previous raw end pointer */
     const char *msg;
     yyjson_read_err dummy_err;
-    if (!err) err = &dummy_err;
     
+#if !YYJSON_HAS_IEEE_754 || YYJSON_DISABLE_FAST_FP_CONV
+    u8 buf[128];
+    usize dat_len;
+#endif
+    
+    if (!err) err = &dummy_err;
     if (unlikely(!dat)) {
         return_err(cur, INVALID_PARAMETER, "input data is NULL");
     }
     if (unlikely(!val)) {
         return_err(cur, INVALID_PARAMETER, "output value is NULL");
     }
+    
+#if !YYJSON_HAS_IEEE_754 || YYJSON_DISABLE_FAST_FP_CONV
+    if (!alc) alc = &YYJSON_DEFAULT_ALC;
+    dat_len = strlen(dat);
+    if (dat_len < sizeof(buf)) {
+        memcpy(buf, dat, dat_len + 1);
+        hdr = buf;
+        cur = hdr;
+    } else {
+        hdr = (u8 *)alc->malloc(alc->ctx, dat_len + 1);
+        cur = hdr;
+        if (unlikely(!hdr)) {
+            return_err(cur, MEMORY_ALLOCATION, "memory allocation failed");
+        }
+        memcpy(hdr, dat, dat_len + 1);
+    }
+#endif
     
 #if YYJSON_DISABLE_NON_STANDARD
     ext = false;
@@ -5821,10 +5966,20 @@ const char *yyjson_read_number(const char *dat,
     raw_end = NULL;
     pre = raw ? &raw_end : NULL;
     
+#if !YYJSON_HAS_IEEE_754 || YYJSON_DISABLE_FAST_FP_CONV
+    if (!read_number(&cur, pre, ext, val, &msg)) {
+        if (dat_len >= sizeof(buf)) alc->free(alc->ctx, hdr);
+        return_err(cur, INVALID_NUMBER, msg);
+    }
+    if (dat_len >= sizeof(buf)) alc->free(alc->ctx, hdr);
+    if (raw) val->uni.str = dat;
+    return dat + (cur - hdr);
+#else
     if (!read_number(&cur, pre, ext, val, &msg)) {
         return_err(cur, INVALID_NUMBER, msg);
     }
     return (const char *)cur;
+#endif
     
 #undef return_err
 }
@@ -6774,7 +6929,7 @@ static_inline u8 *write_string(u8 *cur, bool esc, bool inv,
                                const u8 *str, usize str_len,
                                const char_enc_type *enc_table) {
     
-    /* UTF-8 character mask and pattern, see `read_string` for details. */
+    /* UTF-8 character mask and pattern, see `read_string()` for details. */
 #if YYJSON_ENDIAN == YYJSON_BIG_ENDIAN
     const u16 b2_mask = 0xE0C0UL;
     const u16 b2_patt = 0xC080UL;
