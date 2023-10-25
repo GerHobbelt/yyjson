@@ -409,16 +409,16 @@ extern "C" {
 #define YYJSON_VERSION_MAJOR  0
 
 /** The minor version of yyjson. */
-#define YYJSON_VERSION_MINOR  5
+#define YYJSON_VERSION_MINOR  6
 
 /** The patch version of yyjson. */
-#define YYJSON_VERSION_PATCH  1
+#define YYJSON_VERSION_PATCH  0
 
 /** The version of yyjson in hex: `(major << 16) | (minor << 8) | (patch)`. */
-#define YYJSON_VERSION_HEX    0x000501
+#define YYJSON_VERSION_HEX    0x000600
 
 /** The version string of yyjson. */
-#define YYJSON_VERSION_STRING "0.5.1"
+#define YYJSON_VERSION_STRING "0.6.0"
 
 /** The version of yyjson in hex, same as `YYJSON_VERSION_HEX`. */
 yyjson_api uint32_t yyjson_version(void);
@@ -1762,7 +1762,7 @@ yyjson_api yyjson_mut_val *yyjson_mut_val_mut_copy(yyjson_mut_doc *doc,
     @warning This function is recursive and may cause a stack overflow
         if the object level is too deep. */
 yyjson_api yyjson_doc *yyjson_mut_doc_imut_copy(yyjson_mut_doc *doc,
-                                                yyjson_alc *alc);
+                                                const yyjson_alc *alc);
 
 /** Copies and returns a new immutable document from input,
     returns NULL on error. This makes a `deep-copy` on the mutable value.
@@ -1771,7 +1771,7 @@ yyjson_api yyjson_doc *yyjson_mut_doc_imut_copy(yyjson_mut_doc *doc,
     @warning This function is recursive and may cause a stack overflow
         if the object level is too deep. */
 yyjson_api yyjson_doc *yyjson_mut_val_imut_copy(yyjson_mut_val *val,
-                                                yyjson_alc *alc);
+                                                const yyjson_alc *alc);
 
 
 
@@ -4212,16 +4212,18 @@ struct yyjson_mut_doc {
 
 /* Ensures the capacity to at least equal to the specified byte length. */
 yyjson_api bool unsafe_yyjson_str_pool_grow(yyjson_str_pool *pool,
-                                            yyjson_alc *alc, size_t len);
+                                            const yyjson_alc *alc,
+                                            size_t len);
 
 /* Ensures the capacity to at least equal to the specified value count. */
 yyjson_api bool unsafe_yyjson_val_pool_grow(yyjson_val_pool *pool,
-                                            yyjson_alc *alc, size_t count);
+                                            const yyjson_alc *alc,
+                                            size_t count);
 
 yyjson_api_inline char *unsafe_yyjson_mut_strncpy(yyjson_mut_doc *doc,
                                                   const char *str, size_t len) {
     char *mem;
-    yyjson_alc *alc = &doc->alc;
+    const yyjson_alc *alc = &doc->alc;
     yyjson_str_pool *pool = &doc->str_pool;
     
     if (!str) return NULL;

@@ -191,35 +191,10 @@ yyjson_api uint32_t yyjson_version(void) {
 #   else
 #       define YYJSON_DOUBLE_MATH_CORRECT 0
 #   endif
-#elif defined(__x86_64) || defined(__x86_64__) || \
-    defined(__amd64) || defined(__amd64__) || \
-    defined(_M_AMD64) || defined(_M_X64) || \
-    defined(__ia64) || defined(_IA64) || defined(__IA64__) ||  \
-    defined(__ia64__) || defined(_M_IA64) || defined(__itanium__) || \
-    defined(__arm64) || defined(__arm64__) || \
-    defined(__aarch64__) || defined(_M_ARM64) || \
-    defined(__arm) || defined(__arm__) || defined(_ARM_) || \
-    defined(_ARM) || defined(_M_ARM) || defined(__TARGET_ARCH_ARM) || \
-    defined(mips) || defined(__mips) || defined(__mips__) || \
-    defined(MIPS) || defined(_MIPS_) || defined(__MIPS__) || \
-    defined(_ARCH_PPC64) || defined(__PPC64__) || \
-    defined(__ppc64__) || defined(__powerpc64__) || \
-    defined(__powerpc) || defined(__powerpc__) || defined(__POWERPC__) || \
-    defined(__ppc__) || defined(__ppc) || defined(__PPC__) || \
-    defined(__sparcv9) || defined(__sparc_v9__) || \
-    defined(__sparc) || defined(__sparc__) || defined(__sparc64__) || \
-    defined(__alpha) || defined(__alpha__) || defined(_M_ALPHA) || \
-    defined(__or1k__) || defined(__OR1K__) || defined(OR1K) || \
-    defined(__hppa) || defined(__hppa__) || defined(__HPPA__) || \
-    defined(__riscv) || defined(__riscv__) || \
-    defined(__s390__) || defined(__avr32__) || defined(__SH4__) || \
-    defined(__e2k__) || defined(__arc__) || defined(__ARC64__) || \
-    defined(__loongarch__) || defined(__nios2__) || defined(__ghs) || \
-    defined(__microblaze__) || defined(__XTENSA__) || \
-    defined(__EMSCRIPTEN__) || defined(__wasm__)
-#   define YYJSON_DOUBLE_MATH_CORRECT 1
+#elif defined(__mc68000__) || defined(__pnacl__) || defined(__native_client__)
+#   define YYJSON_DOUBLE_MATH_CORRECT 0
 #else
-#   define YYJSON_DOUBLE_MATH_CORRECT 0 /* unknown, disable fast path */
+#   define YYJSON_DOUBLE_MATH_CORRECT 1
 #endif
 
 /*
@@ -1189,7 +1164,7 @@ static_inline void unsafe_yyjson_val_pool_release(yyjson_val_pool *pool,
 }
 
 bool unsafe_yyjson_str_pool_grow(yyjson_str_pool *pool,
-                                 yyjson_alc *alc, usize len) {
+                                 const yyjson_alc *alc, usize len) {
     yyjson_str_chunk *chunk;
     usize size = len + sizeof(yyjson_str_chunk);
     size = yyjson_max(pool->chunk_size, size);
@@ -1207,7 +1182,7 @@ bool unsafe_yyjson_str_pool_grow(yyjson_str_pool *pool,
 }
 
 bool unsafe_yyjson_val_pool_grow(yyjson_val_pool *pool,
-                                 yyjson_alc *alc, usize count) {
+                                 const yyjson_alc *alc, usize count) {
     yyjson_val_chunk *chunk;
     usize size;
     
@@ -1477,13 +1452,13 @@ static usize yyjson_imut_copy(yyjson_val **val_ptr, char **buf_ptr,
 }
 
 yyjson_api yyjson_doc *yyjson_mut_doc_imut_copy(yyjson_mut_doc *mdoc,
-                                                yyjson_alc *alc) {
+                                                const yyjson_alc *alc) {
     if (!mdoc) return NULL;
     return yyjson_mut_val_imut_copy(mdoc->root, alc);
 }
 
 yyjson_api yyjson_doc *yyjson_mut_val_imut_copy(yyjson_mut_val *mval,
-                                                yyjson_alc *alc) {
+                                                const yyjson_alc *alc) {
     usize val_num = 0, str_sum = 0, hdr_size, buf_size;
     yyjson_doc *doc = NULL;
     yyjson_val *val_hdr = NULL;
@@ -1492,7 +1467,7 @@ yyjson_api yyjson_doc *yyjson_mut_val_imut_copy(yyjson_mut_val *mval,
        warning from the clang analyzer. */
     char *str_hdr = (char *)(void *)&str_sum;
     if (!mval) return NULL;
-    if (!alc) alc = (yyjson_alc *)&YYJSON_DEFAULT_ALC;
+    if (!alc) alc = &YYJSON_DEFAULT_ALC;
     
     /* traverse the input value to get pool size */
     yyjson_mut_stat(mval, &val_num, &str_sum);
