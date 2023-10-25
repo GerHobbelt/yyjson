@@ -475,11 +475,11 @@ typedef uint8_t yyjson_subtype;
  memory allocator.
  */
 typedef struct yyjson_alc {
-    /** Same as libc's malloc(), should not be NULL. */
+    /** Same as libc's malloc(size), should not be NULL. */
     void *(*malloc)(void *ctx, size_t size);
-    /** Same as libc's realloc(), should not be NULL. */
-    void *(*realloc)(void *ctx, void *ptr, size_t size);
-    /** Same as libc's free(), should not be NULL. */
+    /** Same as libc's realloc(ptr, size), should not be NULL. */
+    void *(*realloc)(void *ctx, void *ptr, size_t old_size, size_t size);
+    /** Same as libc's free(ptr), should not be NULL. */
     void (*free)(void *ctx, void *ptr);
     /** A context for malloc/realloc/free, can be NULL. */
     void *ctx;
@@ -619,7 +619,7 @@ typedef uint32_t yyjson_read_code;
 /** Success, no error. */
 static const yyjson_read_code YYJSON_READ_SUCCESS                       = 0;
 
-/** Invalid parameter, such as NULL string or invalid file path. */
+/** Invalid parameter, such as NULL input string or 0 input length. */
 static const yyjson_read_code YYJSON_READ_ERROR_INVALID_PARAMETER       = 1;
 
 /** Memory allocation failure occurs. */
@@ -887,6 +887,10 @@ static const yyjson_write_flag YYJSON_WRITE_INF_AND_NAN_AS_NULL     = 1 << 4;
     escaped as `U+FFFD` (replacement character).
     This flag does not affect the performance of correctly encoded strings. */
 static const yyjson_write_flag YYJSON_WRITE_ALLOW_INVALID_UNICODE   = 1 << 5;
+
+/** Write JSON pretty with 2 space indent.
+    This flag will override `YYJSON_WRITE_PRETTY` flag. */
+static const yyjson_write_flag YYJSON_WRITE_PRETTY_TWO_SPACES       = 1 << 6;
 
 
 
