@@ -635,11 +635,11 @@ typedef struct yyjson_alc {
  function, but the amount of memory required to write a JSON cannot be directly 
  calculated.
  
- This is not a general-purpose allocator. If used to read multiple JSON 
- documents and only some of them are released, it may cause memory
- fragmentation, leading to performance degradation and memory waste. Therefore, 
- it is recommended to use this allocator only for reading or writing a single 
- JSON document.
+ This is not a general-purpose allocator. It is designed to handle a single JSON
+ data at a time. If it is used for overly complex memory tasks, such as parsing
+ multiple JSON documents using the same allocator but releasing only a few of
+ them, it may cause memory fragmentation, resulting in performance degradation
+ and memory waste.
  
  @param alc The allocator to be initialized.
     If this parameter is NULL, the function will fail and return false.
@@ -662,28 +662,30 @@ typedef struct yyjson_alc {
     yyjson_doc *doc = yyjson_read_opts(json, strlen(json), 0, &alc, NULL);
     // the memory of `doc` is on the stack
  @endcode
+ 
+ @warning This Allocator is not thread-safe.
  */
 yyjson_api bool yyjson_alc_pool_init(yyjson_alc *alc, void *buf, size_t size);
 
 /**
- Convenience function to create a pool allocator.
- Same as the following code:
- @code
-     yyjson_alc *alc = malloc(sizeof(yyjson_alc));
-     void *buf = malloc(size);
-     yyjson_alc_pool_init(alc, buf, size);
- @endcode
- @param size The size of buffer, in bytes.
- @return A new pool allocator, or NULL if an error occurs.
- @note The returned value should be freed with `yyjson_alc_pool_free()`.
+ A dynamic allocator.
+ 
+ This allocator has a similar usage to the pool allocator above. However, when
+ there is not enough memory, this allocator will dynamically request more memory
+ using libc's `malloc` function, and frees it all at once when it is destroyed.
+ 
+ @return A new dynamic allocator, or NULL if memory allocation failed.
+ @note The returned value should be freed with `yyjson_alc_dyn_free()`.
+ 
+ @warning This Allocator is not thread-safe.
  */
-yyjson_api yyjson_alc *yyjson_alc_pool_new(size_t size);
+yyjson_api yyjson_alc *yyjson_alc_dyn_new(void);
 
 /**
- Free the pool allocator which is created by `yyjson_alc_pool_new()`.
- @param alc The value returned by `yyjson_alc_pool_new()`.
+ Free a dynamic allocator which is created by `yyjson_alc_dyn_new()`.
+ @param alc The dynamic allocator to be destroyed.
  */
-yyjson_api void yyjson_alc_pool_free(yyjson_alc *alc);
+yyjson_api void yyjson_alc_dyn_free(yyjson_alc *alc);
 
 
 
@@ -1537,7 +1539,7 @@ yyjson_api bool yyjson_mut_val_write_fp(FILE *fp,
     Multiple options can be combined with `|` operator. 0 means no options.
  @param len A pointer to receive output length in bytes (not including the
     null-terminator). Pass NULL if you don't need length information.
- @return A new JSON string, or ≈
+ @return A new JSON string, or NULL if an error occurs.
     This string is encoded as UTF-8 with a null-terminator.
     When it's no longer needed, it should be freed with free().
  */
