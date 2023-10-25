@@ -29,7 +29,7 @@ option(YYJSON_ENABLE_COVERAGE "Enable code coverage for tests" OFF)
 option(YYJSON_ENABLE_VALGRIND "Enable valgrind memory checker for tests" OFF)
 option(YYJSON_ENABLE_SANITIZE "Enable sanitizer for tests" OFF)
 option(YYJSON_ENABLE_FASTMATH "Enable fast-math for tests" OFF)
-option(YYJSON_FORCE_32_BIT "Force 32-bit for tests (gcc/clang/icc)" OFF)
+option(YYJSON_FORCE_32_BIT "Force 32-bit for tests" OFF)
 
 
 
@@ -37,8 +37,11 @@ option(YYJSON_FORCE_32_BIT "Force 32-bit for tests (gcc/clang/icc)" OFF)
 # Compilation options, see yyjson.h for more explanation
 option(YYJSON_DISABLE_READER "Disable JSON reader" OFF)
 option(YYJSON_DISABLE_WRITER "Disable JSON writer" OFF)
+option(YYJSON_DISABLE_UTILS "Disable JSON Pointer, JSON Patch, JSON Merge Patch" OFF)
 option(YYJSON_DISABLE_FAST_FP_CONV "Disable custom floating-point number conversion" OFF)
 option(YYJSON_DISABLE_NON_STANDARD "Disable non-standard JSON support" OFF)
+option(YYJSON_DISABLE_UTF8_VALIDATION "Disable UTF-8 validation" OFF)
+option(YYJSON_DISABLE_UNALIGNED_MEMORY_ACCESS "Disable unaligned memory access explicit" OFF)
 
 if(YYJSON_DISABLE_READER)
     add_definitions(-DYYJSON_DISABLE_READER)
@@ -54,6 +57,12 @@ if(YYJSON_DISABLE_FAST_FP_CONV)
 endif()
 if(YYJSON_DISABLE_NON_STANDARD)
     add_definitions(-DYYJSON_DISABLE_NON_STANDARD)
+endif()
+if(YYJSON_DISABLE_UTF8_VALIDATION)
+    add_definitions(-DYYJSON_DISABLE_UTF8_VALIDATION)
+endif()
+if(YYJSON_DISABLE_UNALIGNED_MEMORY_ACCESS)
+    add_definitions(-DYYJSON_DISABLE_UNALIGNED_MEMORY_ACCESS)
 endif()
 
 
@@ -78,7 +87,7 @@ if(XCODE)
     endif()
     
     set_default_xcode_property(yyjson)
-    set_xcode_deployment_version(yyjson "10.13" "11.0" "11.0" "4.0")
+    set_xcode_deployment_version(yyjson "10.13" "12.0" "12.0" "4.0")
 
     set_xcode_property(yyjson GCC_C_LANGUAGE_STANDARD "c89")
     set_xcode_property(yyjson CLANG_CXX_LANGUAGE_STANDARD "c++98")
@@ -204,7 +213,7 @@ if(YYJSON_BUILD_TESTS)
         xctest_add_test(XCTest.yyjson yyjson_tests)
         
         set_default_xcode_property(yyjson_tests)
-        set_xcode_deployment_version(yyjson_tests "10.13" "11.0" "11.0" "4.0")
+        set_xcode_deployment_version(yyjson_tests "10.13" "12.0" "12.0" "4.0")
         
     else()
         # Check valgrind command

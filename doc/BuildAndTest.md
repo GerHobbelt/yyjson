@@ -69,6 +69,8 @@ Supported CMake options:
 - `-DYYJSON_DISABLE_UTILS=ON` Disable JSON Pointer, JSON Patch and JSON Merge Patch.
 - `-DYYJSON_DISABLE_FAST_FP_CONV=ON` Disable builtin fast floating-pointer conversion.
 - `-DYYJSON_DISABLE_NON_STANDARD=ON` Disable non-standard JSON support at compile-time.
+- `-DYYJSON_DISABLE_UTF8_VALIDATION=ON` Disable UTF-8 validation at compile-time.
+- `-DYYJSON_DISABLE_UNALIGNED_MEMORY_ACCESS=ON` Disable unaligned memory access support at compile-time.
 
 
 ## Use CMake as a dependency
@@ -85,7 +87,7 @@ add_subdirectory(vendor/yyjson)
 target_link_libraries(your_target PRIVATE yyjson)
 ```
 
-If your CMake version is higher than 3.14, you can use the following code to let CMake automatically download it:
+If your CMake version is higher than 3.11, you can use the following code to let CMake automatically download it:
 ```cmake
 include(FetchContent)
 
@@ -95,7 +97,11 @@ FetchContent_Declare(
     GIT_REPOSITORY https://github.com/ibireme/yyjson.git
     GIT_TAG master # master, or version number, e.g. 0.6.0
 )
-FetchContent_MakeAvailable(yyjson)
+FetchContent_GetProperties(yyjson)
+if(NOT yyjson_POPULATED)
+  FetchContent_Populate(yyjson)
+  add_subdirectory(${yyjson_SOURCE_DIR} ${yyjson_BINARY_DIR} EXCLUDE_FROM_ALL)
+endif()
 
 # Link yyjson to your target
 target_link_libraries(your_target PRIVATE yyjson)
@@ -270,6 +276,21 @@ YYJSON_WRITE_ALLOW_INVALID_UNICODE
 
 This will reduce binary size by about 10%, and slightly improves performance.<br/>
 It is recommended when not dealing with non-standard JSON.
+
+● **YYJSON_DISABLE_UTF8_VALIDATION**<br/>
+Define as 1 to disable UTF-8 validation at compile time.
+
+If all input strings are guaranteed to be valid UTF-8 encoding 
+(for example, some language's String object has already validated the encoding), 
+using this flag can avoid redundant UTF-8 validation in yyjson.
+
+This flag can speed up the reading and writing speed of non-ASCII encoded strings by about 3% to 7%.
+
+Note: If this flag is used while passing in illegal UTF-8 strings, the following errors may occur:
+
+- Escaped characters are ignored when parsing JSON strings.
+- Ending quotes are ignored when parsing JSON strings, causing the string to be concatenated to the next value.
+- When accessing `yyjson_mut_val` for serialization, the string ending is accessed out of bounds, causing a segmentation fault.
 
 ● **YYJSON_EXPORTS**<br/>
 Define this as 1 to export symbols when building the library as a Windows DLL.

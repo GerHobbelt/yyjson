@@ -1,12 +1,30 @@
 /*==============================================================================
- * Created by Yaoyuan on 2019/3/9.
- * Copyright (C) 2019 Yaoyuan <ibireme@gmail.com>.
- *
- * Released under the MIT License:
- * https://github.com/ibireme/yyjson/blob/master/LICENSE
+ Copyright (c) 2020 YaoYuan <ibireme@gmail.com>
+ 
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+ 
+ The above copyright notice and this permission notice shall be included in all
+ copies or substantial portions of the Software.
+ 
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
  *============================================================================*/
 
-/** @file yyjson.h */
+/** 
+ @file yyjson.h
+ @date 2019-03-09
+ @author YaoYuan
+ */
 
 #ifndef YYJSON_H
 #define YYJSON_H
@@ -34,9 +52,9 @@
  Define as 1 to disable JSON reader if JSON parsing is not required.
  
  This will disable these functions at compile-time:
+    - yyjson_read()
     - yyjson_read_opts()
     - yyjson_read_file()
-    - yyjson_read()
     - yyjson_read_number()
     - yyjson_mut_read_number()
  
@@ -108,19 +126,36 @@
     - YYJSON_WRITE_ALLOW_INF_AND_NAN
     - YYJSON_WRITE_ALLOW_INVALID_UNICODE
  
- This will reduce the binary size by about 10%, and slightly improve the JSON
- read/write speed.
+ This will reduce the binary size by about 10%, and speed up the reading and
+ writing speed by about 2% to 6%.
  */
 #ifndef YYJSON_DISABLE_NON_STANDARD
 #endif
 
 /*
- Define as 1 to disable unaligned memory access if target architecture does not
- support unaligned memory access (such as some embedded processors).
+ Define as 1 to disable UTF-8 validation at compile time.
  
- If this value is not defined, yyjson will perform some automatic detection.
- The wrong definition of this option may cause some performance degradation,
- but will not cause any run-time errors.
+ If all input strings are guaranteed to be valid UTF-8 encoding (for example,
+ some language's String object has already validated the encoding), using this
+ flag can avoid redundant UTF-8 validation in yyjson.
+ 
+ This flag can speed up the reading and writing speed of non-ASCII encoded
+ strings by about 3% to 7%.
+ 
+ Note: If this flag is used while passing in illegal UTF-8 strings, the
+ following errors may occur:
+ - Escaped characters may be ignored when parsing JSON strings.
+ - Ending quotes may be ignored when parsing JSON strings, causing the string
+   to be concatenated to the next value.
+ - When accessing `yyjson_mut_val` for serialization, the string ending may be
+   accessed out of bounds, causing a segmentation fault.
+ */
+#ifndef YYJSON_DISABLE_UTF8_VALIDATION
+#endif
+
+/*
+ Define as 1 to indicate that the target architecture does not support unaligned
+ memory access. Please refer to the comments in the C file for details.
  */
 #ifndef YYJSON_DISABLE_UNALIGNED_MEMORY_ACCESS
 #endif
@@ -157,8 +192,26 @@
 /** compiler version (GCC) */
 #ifdef __GNUC__
 #   define YYJSON_GCC_VER __GNUC__
+#   if defined(__GNUC_PATCHLEVEL__)
+#       define yyjson_gcc_available(major, minor, patch) \
+            ((__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__) \
+            >= (major * 10000 + minor * 100 + patch))
+#   else
+#       define yyjson_gcc_available(major, minor, patch) \
+            ((__GNUC__ * 10000 + __GNUC_MINOR__ * 100) \
+            >= (major * 10000 + minor * 100 + patch))
+#   endif
 #else
 #   define YYJSON_GCC_VER 0
+#   define yyjson_gcc_available(major, minor, patch) 0
+#endif
+
+/** real gcc check */
+#if !defined(__clang__) && !defined(__INTEL_COMPILER) && !defined(__ICC) && \
+    defined(__GNUC__)
+#   define YYJSON_IS_REAL_GCC 1
+#else
+#   define YYJSON_IS_REAL_GCC 0
 #endif
 
 /** C version (STDC) */
@@ -4428,7 +4481,8 @@ struct yyjson_doc {
  @param len The returnd value from strlen(str).
  */
 yyjson_api_inline bool unsafe_yyjson_is_str_noesc(const char *str, size_t len) {
-#if YYJSON_HAS_CONSTANT_P && (YYJSON_GCC_VER == 0 || YYJSON_GCC_VER >= 4)
+#if YYJSON_HAS_CONSTANT_P && \
+    (!YYJSON_IS_REAL_GCC || yyjson_gcc_available(4, 4, 0))
     if (yyjson_constant_p(len) && len <= 32) {
         /*
          Same as the following loop:
