@@ -970,8 +970,8 @@ typedef struct yyjson_write_err {
     Multiple options can be combined with `|` operator. 0 means no options.
  @param alc The memory allocator used by JSON writer.
     Pass NULL to use the libc's default allocator.
- @param len A pointer to receive output length in bytes.
-    Pass NULL if you don't need length information.
+ @param len A pointer to receive output length in bytes (not including the
+    null-terminator). Pass NULL if you don't need length information.
  @param err A pointer to receive error information.
     Pass NULL if you don't need error information.
  @return A new JSON string, or NULL if an error occurs.
@@ -1021,8 +1021,8 @@ yyjson_api bool yyjson_write_file(const char *path,
     If this doc is NULL or has no root, the function will fail and return false.
  @param flg The JSON write options.
     Multiple options can be combined with `|` operator. 0 means no options.
- @param len A pointer to receive output length in bytes.
-    Pass NULL if you don't need length information.
+ @param len A pointer to receive output length in bytes (not including the
+    null-terminator). Pass NULL if you don't need length information.
  @return A new JSON string, or NULL if an error occurs.
     This string is encoded as UTF-8 with a null-terminator.
     When it's no longer needed, it should be freed with free().
@@ -1048,8 +1048,8 @@ yyjson_api_inline char *yyjson_write(const yyjson_doc *doc,
     Multiple options can be combined with `|` operator. 0 means no options.
  @param alc The memory allocator used by JSON writer.
     Pass NULL to use the libc's default allocator.
- @param len A pointer to receive output length in bytes.
-    Pass NULL if you don't need length information.
+ @param len A pointer to receive output length in bytes (not including the
+    null-terminator). Pass NULL if you don't need length information.
  @param err A pointer to receive error information.
     Pass NULL if you don't need error information.
  @return A new JSON string, or NULL if an error occurs.
@@ -1101,8 +1101,8 @@ yyjson_api bool yyjson_mut_write_file(const char *path,
     If this doc is NULL or has no root, the function will fail and return false.
  @param flg The JSON write options.
     Multiple options can be combined with `|` operator. 0 means no options.
- @param len A pointer to receive output length in bytes.
-    Pass NULL if you don't need length information.
+ @param len A pointer to receive output length in bytes (not including the
+    null-terminator). Pass NULL if you don't need length information.
  @return A new JSON string, or NULL if an error occurs.
     This string is encoded as UTF-8 with a null-terminator.
     When it's no longer needed, it should be freed with free().
@@ -1131,8 +1131,8 @@ yyjson_api_inline char *yyjson_mut_write(const yyjson_mut_doc *doc,
     Multiple options can be combined with `|` operator. 0 means no options.
  @param alc The memory allocator used by JSON writer.
     Pass NULL to use the libc's default allocator.
- @param len A pointer to receive output length in bytes.
-    Pass NULL if you don't need length information.
+ @param len A pointer to receive output length in bytes (not including the
+    null-terminator). Pass NULL if you don't need length information.
  @param err A pointer to receive error information.
     Pass NULL if you don't need error information.
  @return A new JSON string, or NULL if an error occurs.
@@ -1182,8 +1182,8 @@ yyjson_api bool yyjson_val_write_file(const char *path,
     If this parameter is NULL, the function will fail and return NULL.
  @param flg The JSON write options.
     Multiple options can be combined with `|` operator. 0 means no options.
- @param len A pointer to receive output length in bytes.
-    Pass NULL if you don't need length information.
+ @param len A pointer to receive output length in bytes (not including the
+    null-terminator). Pass NULL if you don't need length information.
  @return A new JSON string, or NULL if an error occurs.
     This string is encoded as UTF-8 with a null-terminator.
     When it's no longer needed, it should be freed with free().
@@ -1207,8 +1207,8 @@ yyjson_api_inline char *yyjson_val_write(const yyjson_val *val,
     Multiple options can be combined with `|` operator. 0 means no options.
  @param alc The memory allocator used by JSON writer.
     Pass NULL to use the libc's default allocator.
- @param len A pointer to receive output length in bytes.
-    Pass NULL if you don't need length information.
+ @param len A pointer to receive output length in bytes (not including the
+    null-terminator). Pass NULL if you don't need length information.
  @param err A pointer to receive error information.
     Pass NULL if you don't need error information.
  @return  A new JSON string, or NULL if an error occurs.
@@ -1260,8 +1260,8 @@ yyjson_api bool yyjson_mut_val_write_file(const char *path,
     If this parameter is NULL, the function will fail and return NULL.
  @param flg The JSON write options.
     Multiple options can be combined with `|` operator. 0 means no options.
- @param len A pointer to receive output length in bytes.
-    Pass NULL if you don't need length information.
+ @param len A pointer to receive output length in bytes (not including the
+    null-terminator). Pass NULL if you don't need length information.
  @return A new JSON string, or NULL if an error occurs.
     This string is encoded as UTF-8 with a null-terminator.
     When it's no longer needed, it should be freed with free().
@@ -6125,6 +6125,93 @@ yyjson_api_inline yyjson_mut_val *yyjson_mut_doc_get_pointer(
     return yyjson_mut_get_pointer(doc ? doc->root : NULL, ptr);
 }
 
+/*==============================================================================
+ * JSON Value at Pointer API (Implementation)
+ *============================================================================*/
+
+/** Set provided `value` if the JSON Pointer (RFC 6901) exists and is type bool.
+    Returns true if value at `ptr` exists and is the correct type, otherwise false. */
+yyjson_api_inline bool yyjson_get_bool_pointer(
+    yyjson_doc *doc, const char *ptr, bool *value) {
+    yyjson_val *val = yyjson_doc_get_pointer(doc, ptr);
+    if (value && yyjson_is_bool(val)) {
+        *value = unsafe_yyjson_get_bool (val);
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
+/** Set provided `value` if the JSON Pointer (RFC 6901) exists and is type uint.
+    Returns true if value at `ptr` exists and is the correct type, otherwise false. */
+yyjson_api_inline bool yyjson_get_uint_pointer(
+    yyjson_doc *doc, const char *ptr, uint64_t *value) {
+    yyjson_val *val = yyjson_doc_get_pointer(doc, ptr);
+    if (value && yyjson_is_uint(val)) {
+        *value = unsafe_yyjson_get_uint(val);
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
+/** Set provided `value` if the JSON Pointer (RFC 6901) exists and is type sint.
+    Returns true if value at `ptr` exists and is the correct type, otherwise false. */
+yyjson_api_inline bool yyjson_get_sint_pointer(
+    yyjson_doc *doc, const char *ptr, int64_t *value) {
+    yyjson_val *val = yyjson_doc_get_pointer(doc, ptr);
+    if (value && yyjson_is_sint(val)) {
+        *value = unsafe_yyjson_get_sint(val);
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
+/** Set provided `value` if the JSON Pointer (RFC 6901) exists and is type real.
+    Returns true if value at `ptr` exists and is the correct type, otherwise false. */
+yyjson_api_inline bool yyjson_get_real_pointer(
+    yyjson_doc *doc, const char *ptr, double *value) {
+    yyjson_val *val = yyjson_doc_get_pointer(doc, ptr);
+    if (value && yyjson_is_real(val)) {
+        *value = unsafe_yyjson_get_real(val);
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
+/** Set provided `value` if the JSON Pointer (RFC 6901) exists and is type sint, uint or real.
+    Returns true if value at `ptr` exists and is the correct type, otherwise false. */
+yyjson_api_inline bool yyjson_get_num_pointer(
+    yyjson_doc *doc, const char *ptr, double *value) {
+    yyjson_val *val = yyjson_doc_get_pointer(doc, ptr);
+    if (value && yyjson_is_num(val)) {
+        *value = unsafe_yyjson_get_num(val);
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
+/** Set provided `value` if the JSON Pointer (RFC 6901) exists and is type string.
+    Returns true if value at `ptr` exists and is the correct type, otherwise false. */
+yyjson_api_inline bool yyjson_get_str_pointer(
+    yyjson_doc *doc, const char *ptr, const char **value) {
+    yyjson_val *val = yyjson_doc_get_pointer(doc, ptr);
+    if (value && yyjson_is_str(val)) {
+        *value = unsafe_yyjson_get_str(val);
+        return true;
+    }
+    else {
+        return false;
+    }
+}
 
 
 /*==============================================================================
