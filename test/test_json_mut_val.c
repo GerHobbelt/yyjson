@@ -1356,13 +1356,13 @@ static void test_json_mut_obj_api(void) {
     //---------------------------------------------
     // put()
     
-    // add
+    // add(a) -> {a:10}
     set_validate(0, "a", 1, 10);
     new_key_val(0);
     yy_assert(yyjson_mut_obj_add(obj, key, val));
     validate_mut_obj(obj, keys, key_lens, vals, 1);
     
-    // replace(a)
+    // replace(a) -> {a:11}
     set_validate(0, "a", 1, 11);
     new_key_val(0);
     yy_assert(!yyjson_mut_obj_put(NULL, key, val));
@@ -1370,38 +1370,38 @@ static void test_json_mut_obj_api(void) {
     yy_assert(yyjson_mut_obj_put(obj, key, val));
     validate_mut_obj(obj, keys, key_lens, vals, 1);
     
-    // add
+    // add(b) -> {a:11,b:20}
     set_validate(1, "b", 1, 20);
     new_key_val(1);
     yy_assert(yyjson_mut_obj_add(obj, key, val));
     validate_mut_obj(obj, keys, key_lens, vals, 2);
     
-    // replace(b)
+    // replace(b) -> {a:11,b:21}
     set_validate(1, "b", 1, 21);
     new_key_val(1);
     yy_assert(yyjson_mut_obj_put(obj, key, val));
     validate_mut_obj(obj, keys, key_lens, vals, 2);
     
-    // replace(a)
-    set_validate(0, "b", 1, 21);
-    set_validate(1, "a", 1, 30);
-    new_key_val(1);
+    // replace(a) -> {a:30,b:21}
+    set_validate(0, "a", 1, 30);
+    set_validate(1, "b", 1, 21);
+    new_key_val(0);
     yy_assert(yyjson_mut_obj_put(obj, key, val));
     validate_mut_obj(obj, keys, key_lens, vals, 2);
     
-    // add
+    // add(c) -> {a:30,b:21,c:40}
     set_validate(2, "c", 1, 40);
     new_key_val(2);
     yy_assert(yyjson_mut_obj_add(obj, key, val));
     validate_mut_obj(obj, keys, key_lens, vals, 3);
     
-    // add
+    // add(c) -> {a:30,b:21,c:40,c:41}
     set_validate(3, "c", 1, 41);
     new_key_val(3);
     yy_assert(yyjson_mut_obj_add(obj, key, val));
     validate_mut_obj(obj, keys, key_lens, vals, 4);
     
-    // replace(duplicated)
+    // replace(duplicated) -> {a:30,b:21,c:42}
     set_validate(2, "c", 1, 42);
     new_key_val(2);
     yy_assert(yyjson_mut_obj_put(obj, key, val));
@@ -1936,7 +1936,8 @@ static void test_json_mut_doc_api(void) {
     {
         yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
         yy_assert(yyjson_mut_doc_get_root(doc) == NULL);
-        yy_assert(yyjson_mut_doc_mut_copy(doc, NULL) == NULL);
+        yyjson_mut_doc *doc2 = yyjson_mut_doc_mut_copy(doc, NULL);
+        yy_assert(doc2 != NULL && doc2->root == NULL);
         
         yyjson_mut_val *val = yyjson_mut_str(doc, "abc");
         yy_assert(yyjson_mut_is_str(val));
@@ -1950,6 +1951,7 @@ static void test_json_mut_doc_api(void) {
         yy_assert(yyjson_mut_equals(v1, v2) == false);
         
         yyjson_mut_doc_free(doc);
+        yyjson_mut_doc_free(doc2);
     }
     
 #if !YYJSON_DISABLE_READER
