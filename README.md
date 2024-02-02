@@ -10,6 +10,7 @@
 A high performance JSON library written in ANSI C.
 
 # Features
+
 - **Fast**: can read or write gigabytes per second JSON data on modern CPUs.
 - **Portable**: complies with ANSI C (C89) for cross-platform compatibility.
 - **Strict**: complies with [RFC 8259](https://datatracker.ietf.org/doc/html/rfc8259) JSON standard, ensuring strict number format and UTF-8 validation.
@@ -20,17 +21,20 @@ A high performance JSON library written in ANSI C.
 - **Developer-Friendly**: easy integration with only one `h` and one `c` file.
 
 # Limitations
+
 - An array or object is stored as a [data structure](https://ibireme.github.io/yyjson/doc/doxygen/html/md_doc__data_structure.html) such as linked list, which makes accessing elements by index or key slower than using an iterator.
 - Duplicate keys are allowed in an object, and the order of the keys is preserved.
 - JSON parsing result is immutable, requiring a `mutable copy` for modification.
 
 # Performance
+
 Benchmark project and dataset: [yyjson_benchmark](https://github.com/ibireme/yyjson_benchmark)
 
 The simdjson's new `On Demand` API is faster if most JSON fields are known at compile-time.
 This benchmark project only checks the DOM API, a new benchmark will be added later.
 
 #### AWS EC2 (AMD EPYC 7R32, gcc 9.3)
+
 ![ec2_chart](doc/images/perf_reader_ec2.svg)
 
 |twitter.json|parse (GB/s)|stringify (GB/s)|
@@ -46,6 +50,7 @@ This benchmark project only checks the DOM API, a new benchmark will be added la
 
 
 #### iPhone (Apple A14, clang 12)
+
 ![a14_chart](doc/images/perf_reader_a14.svg)
 
 |twitter.json|parse (GB/s)|stringify (GB/s)|
@@ -71,6 +76,7 @@ More benchmark reports with interactive charts (update 2020-12-12)
 |Apple iPhone 12 Pro|A14 (ARM64)|clang 12.0|iOS 14|[Charts](https://ibireme.github.io/yyjson_benchmark/reports/Apple_A14_clang_12.html)|
 
 ### For better performance, yyjson prefers:
+
 * A modern processor with:
     * high instruction level parallelism
     * excellent branch predictor
@@ -81,6 +87,7 @@ More benchmark reports with interactive charts (update 2020-12-12)
 # Sample Code
 
 ### Read JSON string
+
 ```c
 const char *json = "{\"name\":\"Mash\",\"star\":4,\"hits\":[2,2,1,3]}";
 
@@ -112,6 +119,7 @@ yyjson_doc_free(doc);
 ```
 
 ### Write JSON string
+
 ```c
 // Create a mutable doc
 yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
@@ -139,6 +147,7 @@ yyjson_mut_doc_free(doc);
 ```
 
 ### Read JSON file with options
+
 ```c
 // Read JSON file, allowing comments and trailing commas
 yyjson_read_flag flg = YYJSON_READ_ALLOW_COMMENTS | YYJSON_READ_ALLOW_TRAILING_COMMAS;
@@ -164,6 +173,7 @@ yyjson_doc_free(doc);
 ```
 
 ### Write JSON file with options
+
 ```c
 // Read the JSON file as a mutable doc
 yyjson_doc *idoc = yyjson_read_file("/tmp/config.json", 0, NULL, NULL);
@@ -195,6 +205,7 @@ yyjson_mut_doc_free(doc);
 ```
 
 # Documentation
+
 The latest (unreleased) documentation can be accessed in the [doc](https://github.com/ibireme/yyjson/tree/master/doc) directory.
 The pre-generated Doxygen HTML for the release version can be viewed here:
 * [Home Page](https://ibireme.github.io/yyjson/doc/doxygen/html/)
@@ -224,6 +235,7 @@ yyjson, feel free to open a PR to add it to this list.
 
 
 # TODO
+
 * [x] Add documentation page.
 * [x] Add GitHub workflow for CI and codecov.
 * [x] Add more tests: valgrind, sanitizer.
@@ -235,6 +247,7 @@ yyjson, feel free to open a PR to add it to this list.
 * [ ] Optimize performance for 32-bit processor.
 
 # License
+
 This project is released under the MIT license.
 
 
