@@ -4,15 +4,13 @@
 
 cmake_minimum_required(VERSION 3.5)
 project(yyjson VERSION 0.8.0 LANGUAGES C)
+set(YYJSON_SOVERSION 0)
 
 
 
 # ------------------------------------------------------------------------------
 # Build Type
 if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-    if(XCODE OR MSVC)
-        set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "" FORCE)
-    endif()
     if(NOT CMAKE_BUILD_TYPE)
         message(STATUS "No build type selected, default to: Release")
         set(CMAKE_BUILD_TYPE Release)
@@ -73,7 +71,7 @@ endif()
 # Library
 add_library(yyjson src/yyjson.h src/yyjson.c)
 target_include_directories(yyjson PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>)
-set_target_properties(yyjson PROPERTIES VERSION ${PROJECT_VERSION})
+set_target_properties(yyjson PROPERTIES VERSION ${PROJECT_VERSION} SOVERSION ${YYJSON_SOVERSION})
 
 
 
@@ -95,6 +93,8 @@ if(XCODE)
     set_xcode_property(yyjson CLANG_CXX_LANGUAGE_STANDARD "c++98")
     
     set_xcode_property(yyjson OTHER_CFLAGS[variant=Debug] ${YYJSON_FLAGS})
+    set_xcode_property(yyjson OTHER_CFLAGS[variant=MinSizeRel] ${YYJSON_FLAGS})
+    set_xcode_property(yyjson OTHER_CFLAGS[variant=RelWithDebInfo] ${YYJSON_FLAGS})
     set_xcode_property(yyjson OTHER_CFLAGS[variant=Release] ${YYJSON_FLAGS})
     
 elseif(MSVC)
@@ -152,6 +152,8 @@ install(EXPORT yyjson-targets
         DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/yyjson")
 install(FILES src/yyjson.h DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
 
+configure_file(yyjson.pc.in ${CMAKE_BINARY_DIR}/yyjson.pc @ONLY)
+install(FILES ${CMAKE_BINARY_DIR}/yyjson.pc DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
 
 
 # ------------------------------------------------------------------------------

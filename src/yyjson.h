@@ -738,7 +738,7 @@ typedef uint32_t yyjson_read_flag;
     - Report error if double number is infinity.
     - Report error if string contains invalid UTF-8 character or BOM.
     - Report error on trailing commas, comments, inf and nan literals. */
-static const yyjson_read_flag YYJSON_READ_NOFLAG                = 0 << 0;
+static const yyjson_read_flag YYJSON_READ_NOFLAG                = 0;
 
 /** Read the input data in-situ.
     This option allows the reader to modify and use input data to store string
@@ -1067,7 +1067,7 @@ typedef uint32_t yyjson_write_flag;
     - Report error on inf or nan number.
     - Report error on invalid UTF-8 string.
     - Do not escape unicode or slash. */
-static const yyjson_write_flag YYJSON_WRITE_NOFLAG                  = 0 << 0;
+static const yyjson_write_flag YYJSON_WRITE_NOFLAG                  = 0;
 
 /** Write JSON pretty with 4 space indent. */
 static const yyjson_write_flag YYJSON_WRITE_PRETTY                  = 1 << 0;
@@ -1095,6 +1095,10 @@ static const yyjson_write_flag YYJSON_WRITE_ALLOW_INVALID_UNICODE   = 1 << 5;
 /** Write JSON pretty with 2 space indent.
     This flag will override `YYJSON_WRITE_PRETTY` flag. */
 static const yyjson_write_flag YYJSON_WRITE_PRETTY_TWO_SPACES       = 1 << 6;
+
+/** Adds a newline character `\n` at the end of the JSON.
+    This can be helpful for text editors or NDJSON. */
+static const yyjson_write_flag YYJSON_WRITE_NEWLINE_AT_END          = 1 << 7;
 
 
 
@@ -7730,33 +7734,39 @@ yyjson_api_inline bool yyjson_ptr_get_bool(
 }
 
 /**
- Set provided `value` if the JSON Pointer (RFC 6901) exists and is type uint.
- Returns true if value at `ptr` exists and is the correct type, otherwise false.
+ Set provided `value` if the JSON Pointer (RFC 6901) exists and is an integer
+ that fits in `uint64_t`. Returns true if successful, otherwise false.
  */
 yyjson_api_inline bool yyjson_ptr_get_uint(
     yyjson_val *root, const char *ptr, uint64_t *value) {
     yyjson_val *val = yyjson_ptr_get(root, ptr);
-    if (value && yyjson_is_uint(val)) {
-        *value = unsafe_yyjson_get_uint(val);
-        return true;
-    } else {
-        return false;
+    if (value && val) {
+        uint64_t ret = val->uni.u64;
+        if (unsafe_yyjson_is_uint(val) ||
+            (unsafe_yyjson_is_sint(val) && !(ret >> 63))) {
+            *value = ret;
+            return true;
+        }
     }
+    return false;
 }
 
 /**
- Set provided `value` if the JSON Pointer (RFC 6901) exists and is type sint.
- Returns true if value at `ptr` exists and is the correct type, otherwise false.
+ Set provided `value` if the JSON Pointer (RFC 6901) exists and is an integer
+ that fits in `int64_t`. Returns true if successful, otherwise false.
  */
 yyjson_api_inline bool yyjson_ptr_get_sint(
     yyjson_val *root, const char *ptr, int64_t *value) {
     yyjson_val *val = yyjson_ptr_get(root, ptr);
-    if (value && yyjson_is_sint(val)) {
-        *value = unsafe_yyjson_get_sint(val);
-        return true;
-    } else {
-        return false;
+    if (value && val) {
+        int64_t ret = val->uni.i64;
+        if (unsafe_yyjson_is_sint(val) ||
+            (unsafe_yyjson_is_uint(val) && ret >= 0)) {
+            *value = ret;
+            return true;
+        }
     }
+    return false;
 }
 
 /**
