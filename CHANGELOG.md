@@ -2,12 +2,15 @@
 All notable changes to this project will be documented in this file.
 
 
-## Unreleased
+## 0.9.0 (2024-04-08)
 #### Added
 - Add `YYJSON_WRITE_NEWLINE_AT_END` flag for JSON writer: #147
 
 #### Changed
 - Add auto-type conversion (uint<->sint) to `yyjson_ptr_get_uint/sint()`: #152
+
+#### Fixed
+- Fix incorrect output in environments lacking native `bool` type support: #161
 
 
 ## 0.8.0 (2023-09-13)
