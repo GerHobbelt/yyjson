@@ -617,11 +617,11 @@ typedef uint8_t yyjson_subtype;
  */
 typedef struct yyjson_alc {
     /** Same as libc's malloc(size), should not be NULL. */
-    void *(*malloc)(void *ctx, size_t size);
+    void *(*malloc_)(void *ctx, size_t size);
     /** Same as libc's realloc(ptr, size), should not be NULL. */
-    void *(*realloc)(void *ctx, void *ptr, size_t old_size, size_t size);
+    void *(*realloc_)(void *ctx, void *ptr, size_t old_size, size_t size);
     /** Same as libc's free(ptr), should not be NULL. */
-    void (*free)(void *ctx, void *ptr);
+    void (*free_)(void *ctx, void *ptr);
     /** A context for malloc/realloc/free, can be NULL. */
     void *ctx;
 } yyjson_alc;
@@ -4871,8 +4871,8 @@ yyjson_api_inline void yyjson_doc_free(yyjson_doc *doc) {
     if (doc) {
         yyjson_alc alc = doc->alc;
         memset(&doc->alc, 0, sizeof(alc));
-        if (doc->str_pool) alc.free(alc.ctx, doc->str_pool);
-        alc.free(alc.ctx, doc);
+        if (doc->str_pool) alc.free_(alc.ctx, doc->str_pool);
+        alc.free_(alc.ctx, doc);
     }
 }
 

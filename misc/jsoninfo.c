@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include "yyjson.h"
 
-void print_help(void) {
+static void print_help(void) {
     printf("JSON info tool\n");
     printf("Usage: jsoninfo [options] file\n");
     printf("Example of printing info: jsoninfo twitter.json\n");
@@ -30,7 +30,12 @@ static bool O_MINIFY = false;
 static bool O_ESCAPE = false;
 static bool O_SLASH = false;
 
-int main(int argc, const char * argv[]) {
+
+#if defined(BUILD_MONOLITHIC)
+#define main      yyjson_jsoninfo_main
+#endif
+
+int main(int argc, const char ** argv) {
     if (argc <= 1) {
         print_help();
         return 0;
