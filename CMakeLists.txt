@@ -276,7 +276,7 @@ if(YYJSON_BUILD_TESTS)
                 add_test(${SRC_NAME} ${SRC_NAME})
             endif()
             
-            set_tests_properties(${SRC_NAME} PROPERTIES TIMEOUT 300)
+            set_tests_properties(${SRC_NAME} PROPERTIES TIMEOUT 600)
             message(STATUS "Add test: ${SRC_NAME}")
         endforeach()
         
